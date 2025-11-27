@@ -13,6 +13,7 @@ import { CommonModule } from '@angular/common';
 import { GeminiService, Message, VocabularyItem, VocabularyBankItem } from '../../services/gemini.service';
 import { VocabularyBankComponent } from '../vocabulary-bank/vocabulary-bank.component';
 import { ScenarioSelectionComponent, Scenario } from '../scenario-selection/scenario-selection.component';
+import { GrammarSelectionComponent, GrammarTopic } from '../grammar-selection/grammar-selection.component';
 import { LevelUpComponent } from '../level-up/level-up.component';
 
 interface UserProgress {
@@ -37,7 +38,7 @@ interface Tutor {
 @Component({
   selector: 'app-chat',
   templateUrl: './chat.component.html',
-  imports: [CommonModule, VocabularyBankComponent, ScenarioSelectionComponent, LevelUpComponent],
+  imports: [CommonModule, VocabularyBankComponent, ScenarioSelectionComponent, LevelUpComponent, GrammarSelectionComponent],
 })
 export class ChatComponent {
   private geminiService = inject(GeminiService);
@@ -54,10 +55,13 @@ export class ChatComponent {
   isRecording = signal(false);
   isSpeaking = signal(false);
 
+  // Modals and active states
   vocabularyBank = signal<VocabularyBankItem[]>([]);
   showVocabularyBank = signal(false);
   showScenarioSelection = signal(false);
   activeScenario = signal<Scenario | null>(null);
+  showGrammarSelection = signal(false);
+  activeGrammarTopic = signal<GrammarTopic | null>(null);
   
   // User Progress
   userProgress = signal<UserProgress>({ levelIndex: 0, xp: 0 });
@@ -166,6 +170,41 @@ Keep your tone professional and encouraging.` + this.jsonInstruction,
     }
   ];
 
+  readonly grammarTopics: GrammarTopic[] = [
+    {
+      icon: 'fa-comments',
+      title: 'Present Tense (Le Présent)',
+      description: 'Practice conjugating regular and irregular verbs in the present tense.',
+      systemInstruction: `You are a grammar coach. Your current topic is 'Le Présent' (the Present Tense).
+Your goal is to help me master this tense. Start by giving a very brief, one-sentence explanation of its main use.
+Then, give me a simple verb (like 'parler') and ask me to conjugate it for 'je'.
+Wait for my response. If I'm right, praise me and give me another pronoun. If I'm wrong, gently correct me and explain the rule.
+Continue this interactive exercise with a few different verbs.` + this.jsonInstruction,
+      openingPrompt: `Start the grammar lesson on 'Le Présent'.`
+    },
+    {
+      icon: 'fa-venus-mars',
+      title: 'Gender of Nouns (Le Genre)',
+      description: 'Learn to identify and use the correct gender for common nouns.',
+      systemInstruction: `You are a grammar coach. Your topic is 'Le Genre' (Noun Genders).
+Your goal is to help me practice using 'un/une' and 'le/la'.
+Start by giving me a common noun (e.g., 'livre') and ask me to say it with the correct indefinite article ('un' or 'une').
+Wait for my response. Correct me if I'm wrong and explain any general rules if applicable (e.g., endings like -tion are often feminine).
+Continue this with a variety of nouns.` + this.jsonInstruction,
+      openingPrompt: `Start the grammar lesson on 'Le Genre'.`
+    },
+    {
+      icon: 'fa-clock-rotate-left',
+      title: 'Past Tense (Le Passé Composé)',
+      description: 'Practice forming the past tense with avoir and être.',
+      systemInstruction: `You are a grammar coach. Your topic is 'Le Passé Composé'.
+Start with a brief explanation of how it's formed with 'avoir'.
+Then give me a verb (e.g., 'manger') and a pronoun (e.g., 'tu') and ask me to form the passé composé.
+Wait for my response. Correct me if needed. After a few 'avoir' verbs, introduce a common 'être' verb (like 'aller') and explain the difference, including agreement.` + this.jsonInstruction,
+      openingPrompt: `Start the grammar lesson on 'Le Passé Composé'.`
+    }
+  ];
+
   // --- Computed Signals ---
   activeTutor = computed(() => this.tutors.find(t => t.name === this.userSettings().tutorName) || this.tutors[0]);
 
@@ -242,6 +281,7 @@ Keep your tone professional and encouraging.` + this.jsonInstruction,
     this.isLoading.set(true);
     this.error.set(null);
     this.activeScenario.set(null);
+    this.activeGrammarTopic.set(null);
     this.messages.set([]);
     try {
       const tutor = this.activeTutor();
@@ -433,6 +473,7 @@ Keep your tone professional and encouraging.` + this.jsonInstruction,
   async selectScenario(scenario: Scenario): Promise<void> {
     this.showScenarioSelection.set(false);
     this.activeScenario.set(scenario);
+    this.activeGrammarTopic.set(null);
     this.isLoading.set(true);
     this.messages.set([]);
     this.error.set(null);
@@ -445,6 +486,28 @@ Keep your tone professional and encouraging.` + this.jsonInstruction,
       }
     } catch (e) {
       this.error.set('Could not start the scenario. Please try again.');
+      console.error(e);
+    } finally {
+      this.isLoading.set(false);
+    }
+  }
+
+  async selectGrammarTopic(topic: GrammarTopic): Promise<void> {
+    this.showGrammarSelection.set(false);
+    this.activeGrammarTopic.set(topic);
+    this.activeScenario.set(null);
+    this.isLoading.set(true);
+    this.messages.set([]);
+    this.error.set(null);
+
+    try {
+      const { modelResponse } = await this.geminiService.startNewConversation(topic.systemInstruction, topic.openingPrompt);
+      this.messages.set([modelResponse]);
+      if (this.chatMode() === 'voice') {
+        this.speak(modelResponse.text);
+      }
+    } catch (e) {
+      this.error.set('Could not start the grammar lesson. Please try again.');
       console.error(e);
     } finally {
       this.isLoading.set(false);
@@ -558,6 +621,10 @@ Keep your tone professional and encouraging.` + this.jsonInstruction,
     this.showScenarioSelection.update(v => !v);
   }
 
+  toggleGrammarSelection(): void {
+    this.showGrammarSelection.update(v => !v);
+  }
+
   toggleSettings(): void {
     this.showSettings.update(v => !v);
   }
@@ -577,7 +644,7 @@ Keep your tone professional and encouraging.` + this.jsonInstruction,
     this.showSettings.set(false);
   }
 
-  exitScenario(): void {
+  exitSpecialMode(): void {
     this.initializeChat();
   }
 

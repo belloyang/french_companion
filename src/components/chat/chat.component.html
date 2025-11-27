@@ -10,10 +10,14 @@
           <h1 class="text-lg font-bold truncate text-slate-800 dark:text-white">{{ scenario.title }}</h1>
           <p class="text-sm truncate text-slate-500 dark:text-slate-400">{{ scenario.objective }}</p>
         </div>
-        <button (click)="exitScenario()" class="flex-shrink-0 ml-2 px-2.5 py-1.5 text-xs font-medium transition-colors rounded-lg text-slate-500 hover:bg-zinc-100 dark:text-slate-400 dark:hover:bg-slate-700">
-          <i class="fa-solid fa-xmark"></i>
-          <span class="hidden ml-1 sm:inline">Exit</span>
-        </button>
+      } @else if (activeGrammarTopic(); as topic) {
+        <div class="flex items-center justify-center w-12 h-12 text-xl text-white rounded-full bg-teal-500 shrink-0">
+          <i class="fa-solid {{ topic.icon }}"></i>
+        </div>
+        <div class="min-w-0">
+          <h1 class="text-lg font-bold truncate text-slate-800 dark:text-white">{{ topic.title }}</h1>
+          <p class="text-sm truncate text-slate-500 dark:text-slate-400">Grammar Practice</p>
+        </div>
       } @else {
         <img [src]="activeTutor().avatar + '&size=48x48'" [alt]="activeTutor().name + ' avatar'" class="w-12 h-12 rounded-full shrink-0 border-2 border-white dark:border-slate-700">
         <div class="w-full">
@@ -30,12 +34,22 @@
           </div>
         </div>
       }
+      @if(activeScenario() || activeGrammarTopic()) {
+         <button (click)="exitSpecialMode()" class="flex-shrink-0 ml-2 px-2.5 py-1.5 text-xs font-medium transition-colors rounded-lg text-slate-500 hover:bg-zinc-100 dark:text-slate-400 dark:hover:bg-slate-700">
+          <i class="fa-solid fa-xmark"></i>
+          <span class="hidden ml-1 sm:inline">Exit</span>
+        </button>
+      }
     </div>
     <div class="flex items-center space-x-2">
-      @if(!activeScenario()) {
+      @if(!activeScenario() && !activeGrammarTopic()) {
         <button (click)="toggleScenarioSelection()" class="px-3 py-2 text-sm font-medium transition-colors rounded-lg text-slate-500 hover:bg-zinc-100 dark:text-slate-400 dark:hover:bg-slate-700">
           <i class="fa-solid fa-masks-theater"></i>
-          <span class="hidden ml-2 sm:inline">Change Scenario</span>
+          <span class="hidden ml-2 sm:inline">Scenario</span>
+        </button>
+        <button (click)="toggleGrammarSelection()" class="px-3 py-2 text-sm font-medium transition-colors rounded-lg text-slate-500 hover:bg-zinc-100 dark:text-slate-400 dark:hover:bg-slate-700">
+          <i class="fa-solid fa-spell-check"></i>
+          <span class="hidden ml-2 sm:inline">Grammar</span>
         </button>
       }
       <button (click)="toggleVocabularyBank()" class="relative px-3 py-2 text-sm font-medium transition-colors rounded-lg text-slate-500 hover:bg-zinc-100 dark:text-slate-400 dark:hover:bg-slate-700">
@@ -267,6 +281,15 @@
     (select)="selectScenario($event)"
     (close)="toggleScenarioSelection()">
   </app-scenario-selection>
+}
+
+<!-- Grammar Selection Modal -->
+@if (showGrammarSelection()) {
+  <app-grammar-selection
+    [grammarTopics]="grammarTopics"
+    (select)="selectGrammarTopic($event)"
+    (close)="toggleGrammarSelection()">
+  </app-grammar-selection>
 }
 
 <!-- Level Up Modal -->
