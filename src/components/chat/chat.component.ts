@@ -49,7 +49,7 @@ export class ChatComponent {
 Your goal is to take my order. Start by greeting me and asking what I would like.
 Respond naturally to my requests, and if I ask for the bill, provide a total.
 Keep your language authentic to a café setting.
-IMPORTANT: Your response MUST be a JSON object with "response" and "vocabulary" properties as previously defined.`,
+IMPORTANT: Your response MUST be a JSON object with "response", "vocabulary", and optional "pronunciationFeedback" properties as previously defined.`,
       openingPrompt: 'Start the conversation by greeting me as a waiter would.'
     },
     {
@@ -61,7 +61,7 @@ IMPORTANT: Your response MUST be a JSON object with "response" and "vocabulary" 
 I will ask you for directions to a landmark. You should provide clear, step-by-step directions in French.
 Use common directional phrases (e.g., 'allez tout droit', 'tournez à gauche').
 Start by asking me where I would like to go.
-IMPORTANT: Your response MUST be a JSON object with "response" and "vocabulary" properties as previously defined.`,
+IMPORTANT: Your response MUST be a JSON object with "response", "vocabulary", and optional "pronunciationFeedback" properties as previously defined.`,
       openingPrompt: 'Start the conversation by asking me where I want to go.'
     },
     {
@@ -72,7 +72,7 @@ IMPORTANT: Your response MUST be a JSON object with "response" and "vocabulary" 
       systemInstruction: `You are a hiring manager for a tech company in France, and I am a job applicant.
 Your task is to conduct a short interview. Ask me typical interview questions one by one, like "Parlez-moi de vous" or "Quelles sont vos plus grandes qualités?".
 Keep your tone professional and encouraging.
-IMPORTANT: Your response MUST be a JSON object with "response" and "vocabulary" properties as previously defined.`,
+IMPORTANT: Your response MUST be a JSON object with "response", "vocabulary", and optional "pronunciationFeedback" properties as previously defined.`,
       openingPrompt: 'Start the interview by introducing yourself and asking me to tell you about myself.'
     }
   ];
@@ -213,19 +213,37 @@ IMPORTANT: Your response MUST be a JSON object with "response" and "vocabulary" 
   }
 
   async sendMessage(messageText: string): Promise<void> {
-    const userMessage = messageText.trim();
-    if (!userMessage || this.isLoading()) {
+    const userMessage: Message = { role: 'user', text: messageText.trim() };
+    if (!userMessage.text || this.isLoading()) {
       return;
     }
 
-    this.messages.update(current => [...current, { role: 'user', text: userMessage }]);
+    this.messages.update(current => [...current, userMessage]);
     this.isLoading.set(true);
     this.error.set(null);
 
     try {
-      const aiResponse = await this.geminiService.sendMessage(userMessage);
-      this.messages.update(current => [...current, aiResponse]);
-      this.speak(aiResponse.text);
+      const { modelResponse, userFeedback } = await this.geminiService.sendMessage(userMessage.text);
+      
+      this.messages.update(current => {
+        const newMessages = [...current];
+        // FIX: Replaced findLastIndex with a reverse for-loop for compatibility with older TypeScript/JavaScript targets.
+        let lastUserMsgIndex = -1;
+        for (let i = newMessages.length - 1; i >= 0; i--) {
+          if (newMessages[i].role === 'user' && !newMessages[i].pronunciationFeedback) {
+            lastUserMsgIndex = i;
+            break;
+          }
+        }
+
+        if (lastUserMsgIndex !== -1 && userFeedback) {
+          newMessages[lastUserMsgIndex] = { ...newMessages[lastUserMsgIndex], pronunciationFeedback: userFeedback };
+        }
+        
+        return [...newMessages, modelResponse];
+      });
+      
+      this.speak(modelResponse.text);
     } catch(e) {
       const errorMessage = 'Désolé, une erreur est survenue.';
       this.messages.update(current => [...current, {role: 'model', text: errorMessage}]);
@@ -245,9 +263,9 @@ IMPORTANT: Your response MUST be a JSON object with "response" and "vocabulary" 
     this.error.set(null);
 
     try {
-      const openingMessage = await this.geminiService.startNewConversation(scenario.systemInstruction, scenario.openingPrompt);
-      this.messages.set([openingMessage]);
-      this.speak(openingMessage.text);
+      const { modelResponse } = await this.geminiService.startNewConversation(scenario.systemInstruction, scenario.openingPrompt);
+      this.messages.set([modelResponse]);
+      this.speak(modelResponse.text);
     } catch (e) {
       this.error.set('Could not start the scenario. Please try again.');
       console.error(e);

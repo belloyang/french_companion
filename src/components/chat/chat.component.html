@@ -89,8 +89,31 @@
           </div>
         } @else {
           <div class="flex justify-end">
-            <div class="max-w-lg px-4 py-3 text-white bg-blue-600 rounded-2xl">
-              <p class="text-sm whitespace-pre-wrap">{{ message.text }}</p>
+            <div class="flex flex-col items-end w-full max-w-lg">
+              <!-- User Message Bubble -->
+              <div class="px-4 py-3 text-white bg-blue-600 rounded-2xl">
+                <p class="text-sm whitespace-pre-wrap">{{ message.text }}</p>
+              </div>
+              <!-- Pronunciation Feedback -->
+              @if(message.pronunciationFeedback; as feedback) {
+                <div class="w-full mt-2 p-3 text-sm border rounded-xl bg-slate-100 dark:bg-slate-700/50 dark:border-slate-600">
+                    <div class="flex items-center justify-between pb-2 mb-2 border-b dark:border-slate-600">
+                      <h4 class="font-semibold text-slate-700 dark:text-slate-200">Pronunciation Feedback</h4>
+                      <div class="flex text-lg space-x-0.5">
+                        @for (star of [1,2,3,4,5]; track star) {
+                          <i class="fa-solid fa-star" 
+                             [class.text-yellow-400]="star <= feedback.score" 
+                             [class.text-slate-300]="star > feedback.score"
+                             [class.dark:text-slate-500]="star > feedback.score"></i>
+                        }
+                      </div>
+                    </div>
+                    <p class="text-slate-600 dark:text-slate-300">{{ feedback.feedback }}</p>
+                    <div class="mt-2 pt-2 border-t dark:border-slate-600">
+                      <p class="text-slate-500 dark:text-slate-400"><i class="fa-solid fa-lightbulb mr-2 text-blue-500"></i><span class="font-semibold">Tip:</span> {{ feedback.tip }}</p>
+                    </div>
+                </div>
+              }
             </div>
           </div>
         }
