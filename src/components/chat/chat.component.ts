@@ -141,6 +141,7 @@ Always respond in French. When I make a mistake, provide a detailed correction a
       title: 'At the Café',
       description: 'Practice ordering drinks and snacks.',
       objective: 'Your goal is to successfully order a coffee and a croissant.',
+      backgroundImageUrl: 'https://picsum.photos/id/225/1200/800',
       systemInstruction: `You are a friendly but busy waiter in a Parisian café. I am a customer.
 Your goal is to take my order. Start by greeting me and asking what I would like.
 Respond naturally to my requests, and if I ask for the bill, provide a total.
@@ -152,6 +153,7 @@ Keep your language authentic to a café setting.` + this.jsonInstruction,
       title: 'Asking for Directions',
       description: 'Learn to ask for and understand directions.',
       objective: 'Your goal is to find your way to the Eiffel Tower from a random location.',
+      backgroundImageUrl: 'https://picsum.photos/id/175/1200/800',
       systemInstruction: `You are a helpful Parisian local, and I am a lost tourist.
 I will ask you for directions to a landmark. You should provide clear, step-by-step directions in French.
 Use common directional phrases (e.g., 'allez tout droit', 'tournez à gauche').
@@ -163,6 +165,7 @@ Start by asking me where I would like to go.` + this.jsonInstruction,
       title: 'Job Interview',
       description: 'Practice answering common interview questions.',
       objective: 'Your goal is to answer 3-4 interview questions confidently.',
+      backgroundImageUrl: 'https://picsum.photos/id/119/1200/800',
       systemInstruction: `You are a hiring manager for a tech company in France, and I am a job applicant.
 Your task is to conduct a short interview. Ask me typical interview questions one by one, like "Parlez-moi de vous" or "Quelles sont vos plus grandes qualités?".
 Keep your tone professional and encouraging.` + this.jsonInstruction,
@@ -244,6 +247,16 @@ Wait for my response. Correct me if needed. After a few 'avoir' verbs, introduce
       if (xpForNextLevel <= 0) return 100;
 
       return Math.min(100, (xpInCurrentLevel / xpForNextLevel) * 100);
+  });
+
+  backgroundStyle = computed(() => {
+    const scenario = this.activeScenario();
+    if (scenario?.backgroundImageUrl) {
+      return { 
+        'background-image': `linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), url(${scenario.backgroundImageUrl})` 
+      };
+    }
+    return {};
   });
 
   // --- Component Lifecycle ---

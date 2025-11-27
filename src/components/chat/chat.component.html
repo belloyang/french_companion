@@ -1,4 +1,6 @@
-<div class="flex flex-col h-screen max-w-4xl mx-auto">
+<div 
+  class="flex flex-col h-screen max-w-4xl mx-auto bg-cover bg-center bg-fixed transition-all duration-500"
+  [style]="backgroundStyle()">
   <!-- Header -->
   <header class="sticky top-0 z-20 flex items-center justify-between p-4 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md shrink-0 shadow-sm">
     <div class="flex items-center min-w-0 space-x-4">
@@ -105,7 +107,7 @@
   </header>
 
   <!-- Chat Messages -->
-  <main #chatContainer class="flex-1 p-6 overflow-y-auto bg-zinc-50 dark:bg-slate-900">
+  <main #chatContainer class="flex-1 p-6 overflow-y-auto" [class.bg-zinc-50]="!activeScenario()" [class.dark:bg-slate-900]="!activeScenario()" [class.bg-transparent]="activeScenario()">
     <div class="flex flex-col space-y-4">
       @for (message of messages(); track $index; let isLast = $last) {
         @if (message.role === 'model') {
@@ -205,7 +207,7 @@
 
   <!-- Input Area -->
   <footer class="p-4 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md shadow-[0_-2px_5px_rgba(0,0,0,0.05)] dark:shadow-[0_-2px_5px_rgba(0,0,0,0.2)]">
-    <div class="flex items-center w-full max-w-xl mx-auto space-x-4">
+    <div class="flex items-end w-full max-w-xl mx-auto space-x-4">
       <!-- Main Input Area -->
       <div class="flex-1">
         @if (chatMode() === 'voice') {
@@ -214,9 +216,10 @@
               (click)="toggleRecording()" 
               [disabled]="isLoading()"
               class="flex items-center justify-center w-18 h-18 text-white transition-all duration-300 rounded-full shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-slate-900 focus:ring-indigo-500"
-              [class.bg-gradient-to-br]="!isLoading()"
-              [class.from-rose-500]="isRecording()" [class.to-red-600]="isRecording()"
-              [class.from-indigo-500]="!isRecording()" [class.to-violet-600]="!isRecording()"
+              [class.bg-red-500]="isRecording() && !isLoading()"
+              [class.hover:bg-red-600]="isRecording() && !isLoading()"
+              [class.bg-indigo-500]="!isRecording() && !isLoading()"
+              [class.hover:bg-indigo-600]="!isRecording() && !isLoading()"
               [class.hover:shadow-xl]="!isLoading()"
               [class.scale-110]="isRecording()"
               [class.bg-slate-400]="isLoading()" [class.dark:bg-slate-600]="isLoading()"
@@ -249,7 +252,7 @@
       </div>
 
       <!-- Mode Toggle Button -->
-      <div class="flex-shrink-0">
+      <div class="flex flex-col items-center flex-shrink-0">
         <button (click)="toggleChatMode()" 
           class="flex items-center justify-center w-14 h-14 rounded-full bg-white dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-600 transition-colors shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-slate-900 focus:ring-indigo-500"
           [attr.aria-label]="chatMode() === 'voice' ? 'Switch to text mode' : 'Switch to voice mode'">
@@ -259,6 +262,9 @@
             <i class="text-2xl fa-solid fa-microphone"></i>
           }
         </button>
+        <p class="mt-1 text-xs text-center text-slate-500 dark:text-slate-400">
+          @if (chatMode() === 'voice') { Tap to Text } @else { Tap to Speak }
+        </p>
       </div>
     </div>
   </footer>

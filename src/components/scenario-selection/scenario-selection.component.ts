@@ -8,6 +8,7 @@ export interface Scenario {
   objective: string;
   systemInstruction: string;
   openingPrompt: string;
+  backgroundImageUrl?: string;
 }
 
 @Component({
