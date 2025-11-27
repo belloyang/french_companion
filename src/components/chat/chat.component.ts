@@ -13,11 +13,17 @@ import { CommonModule } from '@angular/common';
 import { GeminiService, Message, VocabularyItem, VocabularyBankItem } from '../../services/gemini.service';
 import { VocabularyBankComponent } from '../vocabulary-bank/vocabulary-bank.component';
 import { ScenarioSelectionComponent, Scenario } from '../scenario-selection/scenario-selection.component';
+import { LevelUpComponent } from '../level-up/level-up.component';
+
+interface UserProgress {
+  levelIndex: number;
+  xp: number;
+}
 
 @Component({
   selector: 'app-chat',
   templateUrl: './chat.component.html',
-  imports: [CommonModule, VocabularyBankComponent, ScenarioSelectionComponent],
+  imports: [CommonModule, VocabularyBankComponent, ScenarioSelectionComponent, LevelUpComponent],
 })
 export class ChatComponent {
   private geminiService = inject(GeminiService);
@@ -25,19 +31,44 @@ export class ChatComponent {
   messages = signal<Message[]>([]);
   isLoading = signal(true);
   error = signal<string | null>(null);
+  
+  // Input mode state
+  chatMode = signal<'voice' | 'text'>('voice');
+  textInputValue = signal('');
+  
+  // Voice-specific state
   isRecording = signal(false);
   isSpeaking = signal(false);
+
   vocabularyBank = signal<VocabularyBankItem[]>([]);
   showVocabularyBank = signal(false);
   showScenarioSelection = signal(false);
   activeScenario = signal<Scenario | null>(null);
   
+  // User Progress
+  userProgress = signal<UserProgress>({ levelIndex: 0, xp: 0 });
+  showLevelUp = signal(false);
+  justLeveledUpTo = signal<string | null>(null);
+
   chatContainer = viewChild<ElementRef<HTMLDivElement>>('chatContainer');
 
   private recognition: any = null;
   private frenchVoice: SpeechSynthesisVoice | null = null;
-  private readonly STORAGE_KEY = 'french-companion-vocab-bank';
+  private readonly VOCAB_STORAGE_KEY = 'french-companion-vocab-bank';
+  private readonly PROGRESS_STORAGE_KEY = 'french-companion-progress';
   private readonly srsIntervalsDays = [1, 3, 7, 14, 30, 60, 120];
+
+  private readonly levels = [
+    { name: 'Beginner I', xpThreshold: 0 },
+    { name: 'Beginner II', xpThreshold: 100 },
+    { name: 'Beginner III', xpThreshold: 250 },
+    { name: 'Intermediate I', xpThreshold: 500 },
+    { name: 'Intermediate II', xpThreshold: 800 },
+    { name: 'Intermediate III', xpThreshold: 1200 },
+    { name: 'Advanced I', xpThreshold: 2000 },
+    { name: 'Advanced II', xpThreshold: 3000 },
+    { name: 'Fluent', xpThreshold: 5000 },
+  ];
 
   readonly scenarios: Scenario[] = [
     {
@@ -77,6 +108,7 @@ IMPORTANT: Your response MUST be a JSON object with "response", "vocabulary", an
     }
   ];
 
+  // --- Computed Signals ---
   wordsDueForReview = computed(() => {
     const now = new Date();
     now.setHours(0, 0, 0, 0); // Compare dates only, not times
@@ -90,29 +122,58 @@ IMPORTANT: Your response MUST be a JSON object with "response", "vocabulary", an
                                 .sort((a, b) => a.word.localeCompare(b.word));
   });
 
+  currentLevel = computed(() => this.levels[this.userProgress().levelIndex]);
+
+  nextLevel = computed(() => {
+      const currentLevelIndex = this.userProgress().levelIndex;
+      if (currentLevelIndex >= this.levels.length - 1) {
+          return null;
+      }
+      return this.levels[currentLevelIndex + 1];
+  });
+
+  progressPercentage = computed(() => {
+      const current = this.currentLevel();
+      const next = this.nextLevel();
+      const progress = this.userProgress();
+
+      if (!next) return 100; // Max level
+
+      const xpInCurrentLevel = progress.xp - current.xpThreshold;
+      const xpForNextLevel = next.xpThreshold - current.xpThreshold;
+
+      if (xpForNextLevel <= 0) return 100;
+
+      return Math.min(100, (xpInCurrentLevel / xpForNextLevel) * 100);
+  });
+
+  // --- Component Lifecycle ---
   constructor() {
     afterNextRender(() => {
       this.initializeChat();
       this.initializeSpeechRecognition();
       this.initializeSpeechSynthesis();
       this.loadVocabularyFromStorage();
+      this.loadProgressFromStorage();
     });
     
+    // Auto-scroll effect
     effect(() => {
       if (this.chatContainer() && this.messages().length > 0) {
         this.scrollToBottom();
       }
     });
 
+    // Auto-save effects
     effect(() => {
-      try {
-        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.vocabularyBank()));
-      } catch (e) {
-        console.error('Failed to save vocabulary bank to local storage:', e);
-      }
+      this.saveToStorage(this.VOCAB_STORAGE_KEY, this.vocabularyBank());
+    });
+    effect(() => {
+      this.saveToStorage(this.PROGRESS_STORAGE_KEY, this.userProgress());
     });
   }
 
+  // --- Initialization ---
   async initializeChat(): Promise<void> {
     this.isLoading.set(true);
     this.error.set(null);
@@ -129,14 +190,16 @@ IMPORTANT: Your response MUST be a JSON object with "response", "vocabulary", an
   }
 
   private loadVocabularyFromStorage(): void {
-    try {
-      const storedData = localStorage.getItem(this.STORAGE_KEY);
-      if (storedData) {
-        const parsedData = JSON.parse(storedData) as VocabularyBankItem[];
-        this.vocabularyBank.set(parsedData);
-      }
-    } catch (e) {
-      console.error('Failed to load vocabulary bank from local storage:', e);
+    const storedData = this.loadFromStorage<VocabularyBankItem[]>(this.VOCAB_STORAGE_KEY);
+    if (storedData) {
+      this.vocabularyBank.set(storedData);
+    }
+  }
+
+  private loadProgressFromStorage(): void {
+    const storedData = this.loadFromStorage<UserProgress>(this.PROGRESS_STORAGE_KEY);
+    if (storedData && storedData.levelIndex < this.levels.length) {
+      this.userProgress.set(storedData);
     }
   }
 
@@ -190,6 +253,7 @@ IMPORTANT: Your response MUST be a JSON object with "response", "vocabulary", an
     }
   }
 
+  // --- User Interaction Handlers ---
   toggleRecording(): void {
     if (!this.recognition) {
         this.error.set('Voice input is not available.');
@@ -212,6 +276,31 @@ IMPORTANT: Your response MUST be a JSON object with "response", "vocabulary", an
     }
   }
 
+  sendTextMessage(event: Event): void {
+    event.preventDefault();
+    const text = this.textInputValue().trim();
+    if (text) {
+      this.sendMessage(text);
+      this.textInputValue.set('');
+    }
+  }
+
+  onTextInput(event: Event) {
+    this.textInputValue.set((event.target as HTMLInputElement).value);
+  }
+
+  toggleChatMode(): void {
+    this.chatMode.update(current => (current === 'voice' ? 'text' : 'voice'));
+    // Stop any ongoing speech or recording when switching modes
+    if (this.isSpeaking()) {
+      window.speechSynthesis.cancel();
+      this.isSpeaking.set(false);
+    }
+    if (this.isRecording() && this.chatMode() === 'text') {
+      this.recognition.stop();
+    }
+  }
+
   async sendMessage(messageText: string): Promise<void> {
     const userMessage: Message = { role: 'user', text: messageText.trim() };
     if (!userMessage.text || this.isLoading()) {
@@ -219,6 +308,7 @@ IMPORTANT: Your response MUST be a JSON object with "response", "vocabulary", an
     }
 
     this.messages.update(current => [...current, userMessage]);
+    this.addXp(1); // +1 XP for sending a message
     this.isLoading.set(true);
     this.error.set(null);
 
@@ -227,7 +317,6 @@ IMPORTANT: Your response MUST be a JSON object with "response", "vocabulary", an
       
       this.messages.update(current => {
         const newMessages = [...current];
-        // FIX: Replaced findLastIndex with a reverse for-loop for compatibility with older TypeScript/JavaScript targets.
         let lastUserMsgIndex = -1;
         for (let i = newMessages.length - 1; i >= 0; i--) {
           if (newMessages[i].role === 'user' && !newMessages[i].pronunciationFeedback) {
@@ -238,18 +327,23 @@ IMPORTANT: Your response MUST be a JSON object with "response", "vocabulary", an
 
         if (lastUserMsgIndex !== -1 && userFeedback) {
           newMessages[lastUserMsgIndex] = { ...newMessages[lastUserMsgIndex], pronunciationFeedback: userFeedback };
+          this.addXp(userFeedback.score); // +1-5 XP for pronunciation
         }
         
         return [...newMessages, modelResponse];
       });
       
-      this.speak(modelResponse.text);
+      if (this.chatMode() === 'voice') {
+        this.speak(modelResponse.text);
+      }
     } catch(e) {
       const errorMessage = 'Désolé, une erreur est survenue.';
       this.messages.update(current => [...current, {role: 'model', text: errorMessage}]);
       this.error.set('Failed to get a response. Please try again.');
       console.error(e);
-      this.speak(errorMessage);
+      if (this.chatMode() === 'voice') {
+        this.speak(errorMessage);
+      }
     } finally {
       this.isLoading.set(false);
     }
@@ -265,7 +359,9 @@ IMPORTANT: Your response MUST be a JSON object with "response", "vocabulary", an
     try {
       const { modelResponse } = await this.geminiService.startNewConversation(scenario.systemInstruction, scenario.openingPrompt);
       this.messages.set([modelResponse]);
-      this.speak(modelResponse.text);
+      if (this.chatMode() === 'voice') {
+        this.speak(modelResponse.text);
+      }
     } catch (e) {
       this.error.set('Could not start the scenario. Please try again.');
       console.error(e);
@@ -287,8 +383,6 @@ IMPORTANT: Your response MUST be a JSON object with "response", "vocabulary", an
     utterance.onstart = () => this.isSpeaking.set(true);
     utterance.onend = () => this.isSpeaking.set(false);
     utterance.onerror = (event) => {
-      // The 'interrupted' error is expected when the user clicks the mic while the AI is speaking.
-      // We can safely ignore it and not show an error to the user.
       if (event.error === 'interrupted') {
         console.log('Speech synthesis interrupted by user action.');
       } else {
@@ -309,6 +403,7 @@ IMPORTANT: Your response MUST be a JSON object with "response", "vocabulary", an
     }
   }
 
+  // --- Vocabulary & SRS Logic ---
   addWordToBank(wordToAdd: VocabularyItem): void {
     this.vocabularyBank.update(currentBank => {
       if (currentBank.some(item => item.word.toLowerCase() === wordToAdd.word.toLowerCase())) {
@@ -321,7 +416,7 @@ IMPORTANT: Your response MUST be a JSON object with "response", "vocabulary", an
       const newItem: VocabularyBankItem = {
         ...wordToAdd,
         srsLevel: 0,
-        nextReviewDate: tomorrow.toISOString().split('T')[0], // YYYY-MM-DD
+        nextReviewDate: tomorrow.toISOString().split('T')[0],
       };
 
       return [...currentBank, newItem];
@@ -353,8 +448,26 @@ IMPORTANT: Your response MUST be a JSON object with "response", "vocabulary", an
       newBank[wordIndex] = updatedWord;
       return newBank;
     });
+    this.addXp(15); // +15 XP for reviewing a word
   }
 
+  // --- XP & Leveling Logic ---
+  addXp(amount: number): void {
+    const currentProgress = this.userProgress();
+    const newXp = currentProgress.xp + amount;
+    this.userProgress.set({ ...currentProgress, xp: newXp });
+
+    const nextLevel = this.nextLevel();
+
+    if (nextLevel && newXp >= nextLevel.xpThreshold) {
+      const newLevelIndex = currentProgress.levelIndex + 1;
+      this.userProgress.update(progress => ({ ...progress, levelIndex: newLevelIndex }));
+      this.justLeveledUpTo.set(this.levels[newLevelIndex].name);
+      this.showLevelUp.set(true);
+    }
+  }
+
+  // --- Modal Toggles ---
   toggleVocabularyBank(): void {
     this.showVocabularyBank.update(v => !v);
   }
@@ -365,5 +478,30 @@ IMPORTANT: Your response MUST be a JSON object with "response", "vocabulary", an
 
   exitScenario(): void {
     this.initializeChat();
+  }
+
+  closeLevelUpModal(): void {
+    this.showLevelUp.set(false);
+  }
+
+  // --- Utility ---
+  private saveToStorage(key: string, data: any): void {
+    try {
+      localStorage.setItem(key, JSON.stringify(data));
+    } catch (e) {
+      console.error(`Failed to save to local storage (key: ${key}):`, e);
+    }
+  }
+
+  private loadFromStorage<T>(key: string): T | null {
+    try {
+      const storedData = localStorage.getItem(key);
+      if (storedData) {
+        return JSON.parse(storedData) as T;
+      }
+    } catch (e) {
+      console.error(`Failed to load from local storage (key: ${key}):`, e);
+    }
+    return null;
   }
 }

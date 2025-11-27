@@ -1,0 +1,14 @@
+<div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm" (click)="closeModal()">
+  <div class="relative w-full max-w-md flex flex-col items-center text-center p-8 mx-4 bg-white rounded-xl shadow-xl dark:bg-slate-800" (click)="$event.stopPropagation()">
+    <div class="flex items-center justify-center w-20 h-20 mb-4 text-4xl text-white rounded-full bg-gradient-to-br from-amber-400 to-orange-500">
+      <i class="fa-solid fa-party-horn"></i>
+    </div>
+    <h2 class="text-3xl font-bold text-slate-800 dark:text-white">Level Up!</h2>
+    <p class="mt-2 text-slate-500 dark:text-slate-400">Congratulations! You've reached:</p>
+    <p class="mt-1 text-2xl font-semibold text-indigo-500 dark:text-indigo-400">{{ newLevelName() }}</p>
+
+    <button (click)="closeModal()" class="w-full px-6 py-3 mt-8 text-lg font-semibold text-white bg-indigo-500 rounded-lg hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-slate-800">
+      Continue
+    </button>
+  </div>
+</div>

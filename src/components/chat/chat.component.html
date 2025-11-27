@@ -16,11 +16,20 @@
         </button>
       } @else {
         <div class="flex items-center justify-center w-12 h-12 text-xl text-white rounded-full bg-indigo-500 shrink-0">
-          <i class="fa-solid fa-comments"></i>
+          <i class="fa-solid fa-graduation-cap"></i>
         </div>
-        <div>
-          <h1 class="text-lg font-bold text-slate-800 dark:text-white">French Companion</h1>
-          <p class="text-sm text-slate-500 dark:text-slate-400">Your personal AI tutor 'Ami'</p>
+        <div class="w-full">
+          <div class="flex justify-between w-full">
+             <h1 class="text-base font-bold text-slate-800 dark:text-white">{{ currentLevel().name }}</h1>
+             @if(nextLevel(); as next) {
+              <p class="text-xs font-medium text-slate-500 dark:text-slate-400">{{ userProgress().xp }}/{{next.xpThreshold}} XP</p>
+             } @else {
+               <p class="text-xs font-medium text-indigo-500 dark:text-indigo-400">Max Level!</p>
+             }
+          </div>
+          <div class="w-full mt-1 bg-gray-200 rounded-full h-1.5 dark:bg-gray-700">
+            <div class="bg-indigo-500 h-1.5 rounded-full" [style.width.%]="progressPercentage()"></div>
+          </div>
         </div>
       }
     </div>
@@ -141,25 +150,61 @@
 
   <!-- Input Area -->
   <footer class="p-4 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md shadow-[0_-2px_5px_rgba(0,0,0,0.05)] dark:shadow-[0_-2px_5px_rgba(0,0,0,0.2)]">
-    <div class="flex flex-col items-center justify-center">
-      <button 
-        (click)="toggleRecording()" 
-        [disabled]="isLoading()"
-        class="flex items-center justify-center w-18 h-18 text-white transition-all duration-300 rounded-full shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-slate-900 focus:ring-indigo-500"
-        [class.bg-gradient-to-br]="!isLoading()"
-        [class.from-rose-500]="isRecording()" [class.to-red-600]="isRecording()"
-        [class.from-indigo-500]="!isRecording()" [class.to-violet-600]="!isRecording()"
-        [class.hover:shadow-xl]="!isLoading()"
-        [class.scale-110]="isRecording()"
-        [class.bg-slate-400]="isLoading()" [class.dark:bg-slate-600]="isLoading()"
-        [class.cursor-not-allowed]="isLoading()">
-        <i class="text-3xl fa-solid" [class.fa-microphone-slash]="isRecording()" [class.fa-microphone]="!isRecording()"></i>
-      </button>
-      @if (isRecording()) {
-        <p class="mt-3 text-sm font-medium text-center text-slate-500 dark:text-slate-400">Listening...</p>
-      } @else {
-        <p class="mt-3 text-sm text-center text-slate-500 dark:text-slate-400">Tap to speak</p>
-      }
+    <div class="flex items-center w-full max-w-xl mx-auto space-x-4">
+      <!-- Main Input Area -->
+      <div class="flex-1">
+        @if (chatMode() === 'voice') {
+          <div class="flex flex-col items-center">
+            <button 
+              (click)="toggleRecording()" 
+              [disabled]="isLoading()"
+              class="flex items-center justify-center w-18 h-18 text-white transition-all duration-300 rounded-full shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-slate-900 focus:ring-indigo-500"
+              [class.bg-gradient-to-br]="!isLoading()"
+              [class.from-rose-500]="isRecording()" [class.to-red-600]="isRecording()"
+              [class.from-indigo-500]="!isRecording()" [class.to-violet-600]="!isRecording()"
+              [class.hover:shadow-xl]="!isLoading()"
+              [class.scale-110]="isRecording()"
+              [class.bg-slate-400]="isLoading()" [class.dark:bg-slate-600]="isLoading()"
+              [class.cursor-not-allowed]="isLoading()">
+              <i class="text-3xl fa-solid" [class.fa-microphone-slash]="isRecording()" [class.fa-microphone]="!isRecording()"></i>
+            </button>
+            @if (isRecording()) {
+              <p class="mt-3 text-sm font-medium text-center text-slate-500 dark:text-slate-400">Listening...</p>
+            } @else {
+              <p class="mt-3 text-sm text-center text-slate-500 dark:text-slate-400">Tap to speak</p>
+            }
+          </div>
+        } @else {
+          <form class="relative w-full" (submit)="sendTextMessage($event)">
+            <input 
+                class="w-full py-4 pl-5 pr-16 text-sm rounded-full shadow-md bg-white dark:bg-slate-700 focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500"
+                type="text" 
+                placeholder="Type a message in French..." 
+                [value]="textInputValue()"
+                (input)="onTextInput($event)"
+                [disabled]="isLoading()">
+            <button 
+                type="submit" 
+                class="absolute inset-y-0 right-0 flex items-center justify-center w-16 h-full text-indigo-500 transition-colors rounded-r-full disabled:text-slate-400 disabled:cursor-not-allowed hover:text-indigo-600 dark:disabled:text-slate-500 dark:hover:text-indigo-400"
+                [disabled]="!textInputValue().trim() || isLoading()">
+                <i class="text-xl fa-solid fa-paper-plane"></i>
+            </button>
+          </form>
+        }
+      </div>
+
+      <!-- Mode Toggle Button -->
+      <div class="flex-shrink-0">
+        <button (click)="toggleChatMode()" 
+          class="flex items-center justify-center w-14 h-14 rounded-full bg-white dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-zinc-100 dark:hover:bg-slate-600 transition-colors shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-slate-900 focus:ring-indigo-500"
+          [attr.aria-label]="chatMode() === 'voice' ? 'Switch to text mode' : 'Switch to voice mode'">
+          @if (chatMode() === 'voice') {
+            <i class="text-2xl fa-solid fa-keyboard"></i>
+          } @else {
+            <i class="text-2xl fa-solid fa-microphone"></i>
+          }
+        </button>
+      </div>
     </div>
   </footer>
 </div>
@@ -181,4 +226,12 @@
     (select)="selectScenario($event)"
     (close)="toggleScenarioSelection()">
   </app-scenario-selection>
+}
+
+<!-- Level Up Modal -->
+@if (showLevelUp()) {
+  <app-level-up 
+    [newLevelName]="justLeveledUpTo()!"
+    (close)="closeLevelUpModal()">
+  </app-level-up>
 }
