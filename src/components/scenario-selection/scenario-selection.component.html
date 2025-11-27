@@ -1,0 +1,23 @@
+<div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60" (click)="closeModal()">
+  <div class="relative w-full max-w-2xl max-h-[90vh] flex flex-col p-6 mx-4 bg-white rounded-lg shadow-xl dark:bg-slate-800" (click)="$event.stopPropagation()">
+    <header class="flex items-center justify-between pb-4 border-b shrink-0 dark:border-slate-700">
+      <h2 class="text-xl font-bold text-slate-800 dark:text-white">Choose a Scenario</h2>
+      <button (click)="closeModal()" class="text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white">
+        <i class="text-2xl fa-solid fa-xmark"></i>
+      </button>
+    </header>
+    <main class="flex-1 mt-4 -mr-2 overflow-y-auto pr-2">
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        @for(scenario of scenarios(); track scenario.title) {
+          <button (click)="onSelect(scenario)" class="flex flex-col items-start p-5 text-left transition-colors border rounded-lg hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-700/50">
+            <div class="flex items-center justify-center w-12 h-12 text-xl text-white bg-blue-600 rounded-lg">
+              <i class="fa-solid {{ scenario.icon }}"></i>
+            </div>
+            <h3 class="mt-4 font-bold text-slate-800 dark:text-white">{{ scenario.title }}</h3>
+            <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ scenario.description }}</p>
+          </button>
+        }
+      </div>
+    </main>
+  </div>
+</div>

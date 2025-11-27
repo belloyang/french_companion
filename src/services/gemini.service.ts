@@ -7,6 +7,11 @@ export interface VocabularyItem {
   example: string;
 }
 
+export interface VocabularyBankItem extends VocabularyItem {
+  srsLevel: number;
+  nextReviewDate: string; // ISO Date String (YYYY-MM-DD)
+}
+
 export interface Message {
   role: 'user' | 'model';
   text: string;
@@ -20,7 +25,9 @@ export class GeminiService {
   private ai: GoogleGenAI | null = null;
   private history: Content[] = [];
 
-  private readonly systemInstruction = `You are a friendly, patient, and encouraging French language tutor named 'Ami'.
+  private systemInstruction: string;
+
+  private readonly defaultSystemInstruction = `You are a friendly, patient, and encouraging French language tutor named 'Ami'.
 Your goal is to help me learn French through natural conversation.
 Always respond in French unless I explicitly ask for something in English using square brackets, like [translate this].
 If I make a mistake, gently correct it and explain why, but don't interrupt the conversational flow.
@@ -70,6 +77,7 @@ Example of a valid response format:
   };
 
   constructor() {
+    this.systemInstruction = this.defaultSystemInstruction;
     try {
       this.ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     } catch (error) {
@@ -78,8 +86,13 @@ Example of a valid response format:
   }
 
   async getInitialMessage(): Promise<Message> {
+    return this.startNewConversation(this.defaultSystemInstruction, "Introduce yourself and ask me a simple question.");
+  }
+
+  async startNewConversation(systemInstruction: string, openingPrompt: string): Promise<Message> {
+    this.systemInstruction = systemInstruction;
     this.history = []; // Reset history for a new session
-    return this.sendMessage("Introduce yourself and ask me a simple question.");
+    return this.sendMessage(openingPrompt);
   }
 
   async sendMessage(messageText: string): Promise<Message> {
