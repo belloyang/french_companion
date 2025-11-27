@@ -83,49 +83,90 @@ export class GeminiService {
     return this.sendMessage(openingPrompt);
   }
 
+  private isRateLimitError(error: unknown): boolean {
+    if (error instanceof Error && error.message) {
+      // Check for JSON-formatted error messages first
+      try {
+        const errorDetails = JSON.parse(error.message);
+        if (errorDetails?.error?.code === 429 || errorDetails?.error?.status === 'RESOURCE_EXHAUSTED') {
+          return true;
+        }
+      } catch (e) {
+        // Not a JSON string, fall back to string matching
+      }
+      
+      // Fallback for other error message formats
+      return error.message.includes('429') || error.message.toLowerCase().includes('resource_exhausted');
+    }
+    return false;
+  }
+
   async sendMessage(messageText: string): Promise<GeminiResponse> {
     if (!this.ai) {
       throw new Error('AI service is not initialized.');
     }
 
-    try {
-      const response: GenerateContentResponse = await this.ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: [...this.history, { role: 'user', parts: [{ text: messageText }] }],
-        config: {
-          systemInstruction: this.systemInstruction,
-          responseMimeType: "application/json",
-          responseSchema: this.responseSchema,
-        },
-      });
-      
-      const jsonText = response.text.trim();
-      const data = JSON.parse(jsonText);
+    const maxRetries = 3;
+    let attempt = 0;
+    let delay = 1000; // Start with 1 second delay
 
-      const modelResponse: Message = {
-        role: 'model',
-        text: data.response,
-        vocabulary: data.vocabulary,
-      };
-      
-      const userFeedback = data.pronunciationFeedback || null;
+    while (attempt < maxRetries) {
+      try {
+        const response: GenerateContentResponse = await this.ai.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: [...this.history, { role: 'user', parts: [{ text: messageText }] }],
+          config: {
+            systemInstruction: this.systemInstruction,
+            responseMimeType: "application/json",
+            responseSchema: this.responseSchema,
+          },
+        });
+        
+        const jsonText = response.text.trim();
+        const data = JSON.parse(jsonText);
 
-      // Update history
-      this.history.push({ role: 'user', parts: [{ text: messageText }] });
-      this.history.push({ role: 'model', parts: [{ text: jsonText }] });
+        const modelResponse: Message = {
+          role: 'model',
+          text: data.response,
+          vocabulary: data.vocabulary,
+        };
+        
+        const userFeedback = data.pronunciationFeedback || null;
 
-      return { modelResponse, userFeedback };
+        // Update history
+        this.history.push({ role: 'user', parts: [{ text: messageText }] });
+        this.history.push({ role: 'model', parts: [{ text: jsonText }] });
 
-    } catch (error) {
-      console.error('Error sending message to Gemini:', error);
-      let errorMessage = 'Désolé, une erreur est survenue. Veuillez réessayer. (Sorry, an error occurred. Please try again.)';
-      if (error instanceof Error && error.message.includes('JSON')) {
-        errorMessage = 'Désolé, j\'ai eu un problème avec ma réponse. Essayons encore ! (Sorry, I had an issue with my response. Let\'s try again!)';
+        return { modelResponse, userFeedback };
+
+      } catch (error) {
+        if (this.isRateLimitError(error) && attempt < maxRetries - 1) {
+          console.warn(`Rate limit exceeded. Retrying in ${delay / 1000}s... (Attempt ${attempt + 1}/${maxRetries})`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          delay *= 2; // Exponential backoff
+          attempt++;
+        } else {
+          console.error('Error sending message to Gemini (final attempt or non-retryable):', error);
+          let errorMessage = 'Désolé, une erreur est survenue. Veuillez réessayer. (Sorry, an error occurred. Please try again.)';
+          
+          if (this.isRateLimitError(error)) {
+             errorMessage = 'Le service est actuellement surchargé. Veuillez patienter un moment avant de réessayer. (The service is currently overloaded. Please wait a moment before trying again.)';
+          } else if (error instanceof Error && error.message.includes('JSON')) {
+            errorMessage = 'Désolé, j\'ai eu un problème avec ma réponse. Essayons encore ! (Sorry, I had an issue with my response. Let\'s try again!)';
+          }
+          
+          return { 
+            modelResponse: { role: 'model', text: errorMessage, vocabulary: [] },
+            userFeedback: null 
+          };
+        }
       }
-      return { 
-        modelResponse: { role: 'model', text: errorMessage, vocabulary: [] },
-        userFeedback: null 
-      };
     }
+    
+    // This fallback should rarely be reached
+    return { 
+        modelResponse: { role: 'model', text: 'Désolé, une erreur inattendue est survenue après plusieurs tentatives.', vocabulary: [] },
+        userFeedback: null 
+    };
   }
 }
