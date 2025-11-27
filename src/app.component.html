@@ -1,2 +1,5 @@
-
-<app-chat></app-chat>
+@if (showSplash()) {
+  <app-splash-screen (animationDone)="onSplashAnimationDone()"></app-splash-screen>
+} @else {
+  <app-chat></app-chat>
+}

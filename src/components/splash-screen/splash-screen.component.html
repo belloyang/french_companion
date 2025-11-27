@@ -1,0 +1,12 @@
+<div 
+  class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-gradient-to-br from-indigo-500 to-violet-600 transition-opacity duration-500 ease-in-out"
+  [class.opacity-100]="animationState() === 'visible'"
+  [class.opacity-0]="animationState() !== 'visible'">
+  <div class="flex flex-col items-center text-center text-white">
+    <div class="flex items-center justify-center w-24 h-24 mb-6 text-5xl bg-white/20 rounded-3xl">
+      <i class="fa-solid fa-comments"></i>
+    </div>
+    <h1 class="text-4xl font-bold">French Immersion Companion</h1>
+    <p class="mt-2 text-lg opacity-80">Learn French by living it.</p>
+  </div>
+</div>

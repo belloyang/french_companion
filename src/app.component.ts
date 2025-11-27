@@ -1,11 +1,18 @@
-
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
+import { CommonModule } from '@angular/common';
 import { ChatComponent } from './components/chat/chat.component';
+import { SplashScreenComponent } from './components/splash-screen/splash-screen.component';
 
 @Component({
   selector: 'app-root',
   templateUrl: './app.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ChatComponent],
+  imports: [CommonModule, ChatComponent, SplashScreenComponent],
 })
-export class AppComponent {}
+export class AppComponent {
+  showSplash = signal(true);
+
+  onSplashAnimationDone(): void {
+    this.showSplash.set(false);
+  }
+}
