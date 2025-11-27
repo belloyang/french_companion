@@ -36,34 +36,7 @@ export interface GeminiResponse {
 export class GeminiService {
   private ai: GoogleGenAI | null = null;
   private history: Content[] = [];
-
-  private systemInstruction: string;
-
-  private readonly defaultSystemInstruction = `You are a friendly, patient, and encouraging French language tutor named 'Ami'.
-Your goal is to help me learn French through natural conversation.
-Always respond in French unless I explicitly ask for something in English using square brackets, like [translate this].
-If I make a mistake, gently correct it and explain why, but don't interrupt the conversational flow.
-Keep your responses concise and appropriate for a language learner.
-
-IMPORTANT: Your response MUST be a JSON object.
-The JSON object must have the following properties:
-1. "response": A string containing your conversational reply in French.
-2. "vocabulary": An array of JSON objects. Each object represents a key vocabulary word from your response that would be useful for a learner. For each vocabulary word, provide "word" (French), "translation" (English), and "example" (French sentence). If no new words, use an empty array.
-3. "pronunciationFeedback": (Optional) An object providing feedback on the user's pronunciation based on their most recent message. If feedback is not applicable (e.g., first message, unintelligible input), omit this property. The object must contain:
-   - "score": An integer from 1 to 5, where 1 is poor and 5 is excellent.
-   - "feedback": A short, constructive string explaining what was good and what could be improved.
-   - "tip": A single, practical tip for improvement.
-
-Example of a valid response format:
-{
-  "response": "Très bien! Votre phrase est presque parfaite.",
-  "vocabulary": [],
-  "pronunciationFeedback": {
-    "score": 4,
-    "feedback": "Your sentence structure is great. Be careful with the 'r' sound in 'parler'.",
-    "tip": "Try to make the French 'r' sound from the back of your throat, not with your tongue."
-  }
-}`;
+  private systemInstruction: string = '';
 
   private readonly responseSchema = {
     type: Type.OBJECT,
@@ -97,17 +70,11 @@ Example of a valid response format:
   };
 
   constructor() {
-    this.systemInstruction = this.defaultSystemInstruction;
     try {
       this.ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     } catch (error) {
       console.error('Failed to initialize GoogleGenAI:', error);
     }
-  }
-
-  async getInitialMessage(): Promise<Message> {
-    const { modelResponse } = await this.startNewConversation(this.defaultSystemInstruction, "Introduce yourself and ask me a simple question.");
-    return modelResponse;
   }
 
   async startNewConversation(systemInstruction: string, openingPrompt: string): Promise<GeminiResponse> {

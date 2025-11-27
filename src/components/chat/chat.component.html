@@ -15,9 +15,7 @@
           <span class="hidden ml-1 sm:inline">Exit</span>
         </button>
       } @else {
-        <div class="flex items-center justify-center w-12 h-12 text-xl text-white rounded-full bg-indigo-500 shrink-0">
-          <i class="fa-solid fa-graduation-cap"></i>
-        </div>
+        <img [src]="activeTutor().avatar + '&size=48x48'" [alt]="activeTutor().name + ' avatar'" class="w-12 h-12 rounded-full shrink-0 border-2 border-white dark:border-slate-700">
         <div class="w-full">
           <div class="flex justify-between w-full">
              <h1 class="text-base font-bold text-slate-800 dark:text-white">{{ currentLevel().name }}</h1>
@@ -56,28 +54,34 @@
           <i class="fa-solid fa-gear"></i>
         </button>
         @if (showSettings()) {
-          <div class="absolute right-0 z-30 w-40 mt-2 p-2 origin-top-right bg-white border rounded-lg shadow-xl dark:bg-slate-700 dark:border-slate-600 focus:outline-none">
+          <div class="absolute right-0 z-30 w-64 mt-2 p-2 origin-top-right bg-white border rounded-lg shadow-xl dark:bg-slate-700 dark:border-slate-600 focus:outline-none">
+            <!-- Speed Controls -->
             <div class="py-1">
               <p class="px-2 py-1 text-xs font-semibold tracking-wider uppercase text-slate-400 dark:text-slate-500">Speed</p>
-              <div class="mt-1 space-y-1">
-                <button (click)="changeSpeakingRate(0.75)" class="flex items-center justify-between w-full px-2 py-1.5 text-sm text-left rounded-md text-slate-700 dark:text-slate-200 hover:bg-zinc-100 dark:hover:bg-slate-600"
-                  [class.bg-indigo-100]="userSettings().speakingRate === 0.75"
-                  [class.dark:bg-indigo-900/50]="userSettings().speakingRate === 0.75">
-                  <span>Slow</span>
-                  @if (userSettings().speakingRate === 0.75) { <i class="fa-solid fa-check text-indigo-500"></i> }
-                </button>
-                <button (click)="changeSpeakingRate(1)" class="flex items-center justify-between w-full px-2 py-1.5 text-sm text-left rounded-md text-slate-700 dark:text-slate-200 hover:bg-zinc-100 dark:hover:bg-slate-600"
-                  [class.bg-indigo-100]="userSettings().speakingRate === 1"
-                  [class.dark:bg-indigo-900/50]="userSettings().speakingRate === 1">
-                  <span>Normal</span>
-                  @if (userSettings().speakingRate === 1) { <i class="fa-solid fa-check text-indigo-500"></i> }
-                </button>
-                <button (click)="changeSpeakingRate(1.5)" class="flex items-center justify-between w-full px-2 py-1.5 text-sm text-left rounded-md text-slate-700 dark:text-slate-200 hover:bg-zinc-100 dark:hover:bg-slate-600"
-                  [class.bg-indigo-100]="userSettings().speakingRate === 1.5"
-                  [class.dark:bg-indigo-900/50]="userSettings().speakingRate === 1.5">
-                  <span>Fast</span>
-                  @if (userSettings().speakingRate === 1.5) { <i class="fa-solid fa-check text-indigo-500"></i> }
-                </button>
+              <div class="flex p-1 mt-1 space-x-1 bg-zinc-100 dark:bg-slate-800 rounded-lg">
+                <button (click)="changeSpeakingRate(0.75)" class="w-full px-2 py-1 text-sm rounded-md transition-colors" [class.bg-white]="userSettings().speakingRate === 0.75" [class.dark:bg-slate-600]="userSettings().speakingRate === 0.75" [class.text-indigo-500]="userSettings().speakingRate === 0.75">Slow</button>
+                <button (click)="changeSpeakingRate(1)" class="w-full px-2 py-1 text-sm rounded-md transition-colors" [class.bg-white]="userSettings().speakingRate === 1" [class.dark:bg-slate-600]="userSettings().speakingRate === 1" [class.text-indigo-500]="userSettings().speakingRate === 1">Normal</button>
+                <button (click)="changeSpeakingRate(1.5)" class="w-full px-2 py-1 text-sm rounded-md transition-colors" [class.bg-white]="userSettings().speakingRate === 1.5" [class.dark:bg-slate-600]="userSettings().speakingRate === 1.5" [class.text-indigo-500]="userSettings().speakingRate === 1.5">Fast</button>
+              </div>
+            </div>
+            <!-- Tutor Selection -->
+            <div class="py-1 mt-2">
+              <p class="px-2 py-1 text-xs font-semibold tracking-wider uppercase text-slate-400 dark:text-slate-500">Tutor</p>
+              <div class="mt-1 space-y-2">
+                @for(tutor of tutors; track tutor.name) {
+                  <button (click)="changeTutor(tutor.name)" class="flex items-center w-full p-2 text-left transition-colors rounded-lg hover:bg-zinc-100 dark:hover:bg-slate-600/50"
+                    [class.bg-indigo-50]="userSettings().tutorName === tutor.name"
+                    [class.dark:bg-indigo-900/30]="userSettings().tutorName === tutor.name">
+                    <img [src]="tutor.avatar + '&size=40x40'" [alt]="tutor.name + ' avatar'" class="w-10 h-10 rounded-full shrink-0">
+                    <div class="ml-3">
+                      <h4 class="text-sm font-semibold text-slate-800 dark:text-slate-100">{{tutor.name}}</h4>
+                      <p class="text-xs text-slate-500 dark:text-slate-400">{{tutor.description}}</p>
+                    </div>
+                     @if (userSettings().tutorName === tutor.name) { 
+                       <i class="ml-auto text-lg fa-solid fa-check-circle text-indigo-500"></i> 
+                     }
+                  </button>
+                }
               </div>
             </div>
           </div>
@@ -91,7 +95,8 @@
     <div class="flex flex-col space-y-4">
       @for (message of messages(); track $index; let isLast = $last) {
         @if (message.role === 'model') {
-          <div class="flex items-end justify-start space-x-2">
+          <div class="flex items-start justify-start space-x-3">
+            <img [src]="activeTutor().avatar + '&size=40x40'" [alt]="activeTutor().name + ' avatar'" class="w-10 h-10 rounded-full shrink-0">
             <div class="w-full max-w-lg">
               <div class="px-4 py-3 bg-white rounded-2xl shadow-sm dark:bg-slate-700 text-slate-800 dark:text-slate-200">
                 <p class="text-sm whitespace-pre-wrap">{{ message.text }}</p>
@@ -131,7 +136,7 @@
             }
           </div>
         } @else {
-          <div class="flex justify-end">
+          <div class="flex items-start justify-end space-x-3">
             <div class="flex flex-col items-end w-full max-w-lg">
               <!-- User Message Bubble -->
               <div class="px-4 py-3 text-white rounded-2xl bg-gradient-to-br from-indigo-500 to-indigo-600 shadow-md">
@@ -158,11 +163,13 @@
                 </div>
               }
             </div>
+             <img src="https://robohash.org/user.png?set=set5&bgset=bg2&size=40x40" alt="User avatar" class="w-10 h-10 rounded-full shrink-0">
           </div>
         }
       }
       @if (isLoading() && (!messages().length || messages()[messages().length-1].role === 'user')) {
-        <div class="flex justify-start">
+        <div class="flex items-start justify-start space-x-3">
+          <img [src]="activeTutor().avatar + '&size=40x40'" [alt]="activeTutor().name + ' avatar'" class="w-10 h-10 rounded-full shrink-0">
           <div class="max-w-lg px-4 py-3 bg-white rounded-2xl dark:bg-slate-700 shadow-sm">
             <div class="flex items-center space-x-2">
               <div class="w-2 h-2 bg-slate-400 rounded-full animate-pulse [animation-delay:-0.3s]"></div>

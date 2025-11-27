@@ -22,7 +22,17 @@ interface UserProgress {
 
 interface UserSettings {
   speakingRate: number; // 0.75 (slow), 1 (normal), 1.5 (fast)
+  tutorName: string;
 }
+
+interface Tutor {
+  name: string;
+  avatar: string;
+  description: string;
+  systemInstruction: string;
+  voiceName?: string;
+}
+
 
 @Component({
   selector: 'app-chat',
@@ -55,7 +65,7 @@ export class ChatComponent {
   justLeveledUpTo = signal<string | null>(null);
 
   // Settings
-  userSettings = signal<UserSettings>({ speakingRate: 1 });
+  userSettings = signal<UserSettings>({ speakingRate: 1, tutorName: 'Ami' });
   showSettings = signal(false);
 
   chatContainer = viewChild<ElementRef<HTMLDivElement>>('chatContainer');
@@ -66,6 +76,48 @@ export class ChatComponent {
   private readonly PROGRESS_STORAGE_KEY = 'french-companion-progress';
   private readonly SETTINGS_STORAGE_KEY = 'french-companion-settings';
   private readonly srsIntervalsDays = [1, 3, 7, 14, 30, 60, 120];
+
+  private readonly jsonInstruction = `
+IMPORTANT: Your response MUST be a JSON object.
+The JSON object must have the following properties:
+1. "response": A string containing your conversational reply in French.
+2. "vocabulary": An array of JSON objects. Each object represents a key vocabulary word from your response that would be useful for a learner. For each vocabulary word, provide "word" (French), "translation" (English), and "example" (French sentence). If no new words, use an empty array.
+3. "pronunciationFeedback": (Optional) An object providing feedback on the user's pronunciation based on their most recent message. If feedback is not applicable (e.g., first message, unintelligible input), omit this property. The object must contain:
+   - "score": An integer from 1 to 5, where 1 is poor and 5 is excellent.
+   - "feedback": A short, constructive string explaining what was good and what could be improved.
+   - "tip": A single, practical tip for improvement.`;
+
+  readonly tutors: Tutor[] = [
+    {
+      name: 'Ami',
+      avatar: 'https://robohash.org/ami.png?set=set2&bgset=bg1',
+      description: 'A friendly and patient tutor, perfect for all levels.',
+      systemInstruction: `You are a friendly, patient, and encouraging French language tutor named 'Ami'.
+Your goal is to help me learn French through natural conversation.
+Always respond in French unless I explicitly ask for something in English using square brackets, like [translate this].
+If I make a mistake, gently correct it and explain why, but don't interrupt the conversational flow.
+Keep your responses concise and appropriate for a language learner.` + this.jsonInstruction
+    },
+    {
+      name: 'Chloé',
+      avatar: 'https://robohash.org/chloe.png?set=set4&bgset=bg2',
+      description: 'An energetic and cheerful tutor who makes learning fun.',
+      voiceName: 'Amelie', // Common on macOS
+      systemInstruction: `You are a cheerful and energetic French language tutor named 'Chloé'.
+Your goal is to make learning French fun and engaging. Use modern, everyday language and maybe an emoji or two where appropriate 😉.
+Always respond in French. If I make a mistake, correct it in a friendly, encouraging way.
+Keep responses upbeat and not too long.` + this.jsonInstruction
+    },
+    {
+      name: 'Marc',
+      avatar: 'https://robohash.org/marc.png?set=set3&bgset=bg1',
+      description: 'A formal and precise tutor, focused on grammar.',
+      voiceName: 'Thomas', // Common on Windows
+      systemInstruction: `You are a formal and precise French language tutor named 'Marc'.
+Your goal is to help me achieve grammatical accuracy. Your tone is professional and clear.
+Always respond in French. When I make a mistake, provide a detailed correction and explain the grammatical rule. Focus on precision.` + this.jsonInstruction
+    },
+  ];
 
   private readonly levels = [
     { name: 'Beginner I', xpThreshold: 0 },
@@ -88,8 +140,7 @@ export class ChatComponent {
       systemInstruction: `You are a friendly but busy waiter in a Parisian café. I am a customer.
 Your goal is to take my order. Start by greeting me and asking what I would like.
 Respond naturally to my requests, and if I ask for the bill, provide a total.
-Keep your language authentic to a café setting.
-IMPORTANT: Your response MUST be a JSON object with "response", "vocabulary", and optional "pronunciationFeedback" properties as previously defined.`,
+Keep your language authentic to a café setting.` + this.jsonInstruction,
       openingPrompt: 'Start the conversation by greeting me as a waiter would.'
     },
     {
@@ -100,8 +151,7 @@ IMPORTANT: Your response MUST be a JSON object with "response", "vocabulary", an
       systemInstruction: `You are a helpful Parisian local, and I am a lost tourist.
 I will ask you for directions to a landmark. You should provide clear, step-by-step directions in French.
 Use common directional phrases (e.g., 'allez tout droit', 'tournez à gauche').
-Start by asking me where I would like to go.
-IMPORTANT: Your response MUST be a JSON object with "response", "vocabulary", and optional "pronunciationFeedback" properties as previously defined.`,
+Start by asking me where I would like to go.` + this.jsonInstruction,
       openingPrompt: 'Start the conversation by asking me where I want to go.'
     },
     {
@@ -111,13 +161,14 @@ IMPORTANT: Your response MUST be a JSON object with "response", "vocabulary", an
       objective: 'Your goal is to answer 3-4 interview questions confidently.',
       systemInstruction: `You are a hiring manager for a tech company in France, and I am a job applicant.
 Your task is to conduct a short interview. Ask me typical interview questions one by one, like "Parlez-moi de vous" or "Quelles sont vos plus grandes qualités?".
-Keep your tone professional and encouraging.
-IMPORTANT: Your response MUST be a JSON object with "response", "vocabulary", and optional "pronunciationFeedback" properties as previously defined.`,
+Keep your tone professional and encouraging.` + this.jsonInstruction,
       openingPrompt: 'Start the interview by introducing yourself and asking me to tell you about myself.'
     }
   ];
 
   // --- Computed Signals ---
+  activeTutor = computed(() => this.tutors.find(t => t.name === this.userSettings().tutorName) || this.tutors[0]);
+
   wordsDueForReview = computed(() => {
     const now = new Date();
     now.setHours(0, 0, 0, 0); // Compare dates only, not times
@@ -159,12 +210,12 @@ IMPORTANT: Your response MUST be a JSON object with "response", "vocabulary", an
   // --- Component Lifecycle ---
   constructor() {
     afterNextRender(() => {
-      this.initializeChat();
-      this.initializeSpeechRecognition();
-      this.initializeSpeechSynthesis();
       this.loadVocabularyFromStorage();
       this.loadProgressFromStorage();
       this.loadSettingsFromStorage();
+      this.initializeSpeechRecognition();
+      this.initializeSpeechSynthesis(); // Depends on settings
+      this.initializeChat(); // Depends on settings
     });
     
     // Auto-scroll effect
@@ -191,9 +242,11 @@ IMPORTANT: Your response MUST be a JSON object with "response", "vocabulary", an
     this.isLoading.set(true);
     this.error.set(null);
     this.activeScenario.set(null);
+    this.messages.set([]);
     try {
-      const initialMessage = await this.geminiService.getInitialMessage();
-      this.messages.set([initialMessage]);
+      const tutor = this.activeTutor();
+      const { modelResponse } = await this.geminiService.startNewConversation(tutor.systemInstruction, "Introduce yourself and ask me a simple question.");
+      this.messages.set([modelResponse]);
     } catch(e) {
       this.error.set('Could not start a chat session. Please check your API key and network connection.');
       console.error(e);
@@ -227,7 +280,15 @@ IMPORTANT: Your response MUST be a JSON object with "response", "vocabulary", an
     if ('speechSynthesis' in window) {
       const setVoice = () => {
         const voices = window.speechSynthesis.getVoices();
-        this.frenchVoice = voices.find(voice => voice.lang.startsWith('fr')) || null;
+        const tutor = this.activeTutor();
+        // Try to find the specific voice for the tutor
+        if (tutor.voiceName) {
+            this.frenchVoice = voices.find(voice => voice.name === tutor.voiceName && voice.lang.startsWith('fr')) || null;
+        }
+        // If not found, fall back to the first available French voice
+        if (!this.frenchVoice) {
+            this.frenchVoice = voices.find(voice => voice.lang.startsWith('fr')) || null;
+        }
       };
       
       setVoice();
@@ -488,7 +549,7 @@ IMPORTANT: Your response MUST be a JSON object with "response", "vocabulary", an
     }
   }
 
-  // --- Modal Toggles ---
+  // --- Settings & Modals ---
   toggleVocabularyBank(): void {
     this.showVocabularyBank.update(v => !v);
   }
@@ -503,7 +564,17 @@ IMPORTANT: Your response MUST be a JSON object with "response", "vocabulary", an
 
   changeSpeakingRate(rate: number): void {
     this.userSettings.update(settings => ({ ...settings, speakingRate: rate }));
-    this.showSettings.set(false); // Hide panel after selection
+  }
+
+  changeTutor(tutorName: string): void {
+    if (this.userSettings().tutorName === tutorName) {
+      this.showSettings.set(false);
+      return;
+    }
+    this.userSettings.update(settings => ({ ...settings, tutorName }));
+    this.initializeSpeechSynthesis(); // Update voice
+    this.initializeChat(); // Restart conversation
+    this.showSettings.set(false);
   }
 
   exitScenario(): void {
