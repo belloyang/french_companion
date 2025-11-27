@@ -1,21 +1,21 @@
-<div class="flex flex-col h-screen max-w-4xl mx-auto font-sans">
+<div class="flex flex-col h-screen max-w-4xl mx-auto">
   <!-- Header -->
-  <header class="sticky top-0 z-20 flex items-center justify-between p-4 bg-white border-b shrink-0 border-slate-200 dark:bg-slate-800 dark:border-slate-700">
-    <div class="flex items-center min-w-0 space-x-3">
+  <header class="sticky top-0 z-20 flex items-center justify-between p-4 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md shrink-0 shadow-sm">
+    <div class="flex items-center min-w-0 space-x-4">
       @if (activeScenario(); as scenario) {
-        <div class="p-2 text-white bg-blue-600 rounded-full">
+        <div class="flex items-center justify-center w-12 h-12 text-xl text-white rounded-full bg-indigo-500 shrink-0">
           <i class="fa-solid {{ scenario.icon }}"></i>
         </div>
         <div class="min-w-0">
           <h1 class="text-lg font-bold truncate text-slate-800 dark:text-white">{{ scenario.title }}</h1>
           <p class="text-sm truncate text-slate-500 dark:text-slate-400">{{ scenario.objective }}</p>
         </div>
-        <button (click)="exitScenario()" class="flex-shrink-0 ml-2 px-2.5 py-1.5 text-xs font-medium transition-colors rounded-md text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700">
+        <button (click)="exitScenario()" class="flex-shrink-0 ml-2 px-2.5 py-1.5 text-xs font-medium transition-colors rounded-lg text-slate-500 hover:bg-zinc-100 dark:text-slate-400 dark:hover:bg-slate-700">
           <i class="fa-solid fa-xmark"></i>
           <span class="hidden ml-1 sm:inline">Exit</span>
         </button>
       } @else {
-        <div class="p-2 text-white bg-blue-600 rounded-full">
+        <div class="flex items-center justify-center w-12 h-12 text-xl text-white rounded-full bg-indigo-500 shrink-0">
           <i class="fa-solid fa-comments"></i>
         </div>
         <div>
@@ -26,16 +26,16 @@
     </div>
     <div class="flex items-center space-x-2">
       @if(!activeScenario()) {
-        <button (click)="toggleScenarioSelection()" class="px-3 py-2 text-sm font-medium transition-colors rounded-md text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700">
+        <button (click)="toggleScenarioSelection()" class="px-3 py-2 text-sm font-medium transition-colors rounded-lg text-slate-500 hover:bg-zinc-100 dark:text-slate-400 dark:hover:bg-slate-700">
           <i class="fa-solid fa-masks-theater"></i>
           <span class="hidden ml-2 sm:inline">Change Scenario</span>
         </button>
       }
-      <button (click)="toggleVocabularyBank()" class="relative px-3 py-2 text-sm font-medium transition-colors rounded-md text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700">
+      <button (click)="toggleVocabularyBank()" class="relative px-3 py-2 text-sm font-medium transition-colors rounded-lg text-slate-500 hover:bg-zinc-100 dark:text-slate-400 dark:hover:bg-slate-700">
         <i class="fa-solid fa-book-bookmark"></i>
         <span class="hidden ml-2 sm:inline">Vocabulary</span>
         @if (wordsDueForReview().length > 0) {
-          <span class="absolute top-0 right-0 flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-blue-600 rounded-full -translate-y-1/2 translate-x-1/3">
+          <span class="absolute top-0 right-0 flex items-center justify-center w-5 h-5 text-xs font-bold text-white rounded-full bg-indigo-500 -translate-y-1/2 translate-x-1/3">
             {{ wordsDueForReview().length }}
           </span>
         }
@@ -44,13 +44,13 @@
   </header>
 
   <!-- Chat Messages -->
-  <main #chatContainer class="flex-1 p-6 overflow-y-auto bg-slate-50 dark:bg-slate-900">
+  <main #chatContainer class="flex-1 p-6 overflow-y-auto bg-zinc-50 dark:bg-slate-900">
     <div class="flex flex-col space-y-4">
       @for (message of messages(); track $index; let isLast = $last) {
         @if (message.role === 'model') {
           <div class="flex items-end justify-start space-x-2">
             <div class="w-full max-w-lg">
-              <div class="px-4 py-3 bg-white rounded-2xl dark:bg-slate-700 text-slate-800 dark:text-slate-200">
+              <div class="px-4 py-3 bg-white rounded-2xl shadow-sm dark:bg-slate-700 text-slate-800 dark:text-slate-200">
                 <p class="text-sm whitespace-pre-wrap">{{ message.text }}</p>
               </div>
               <!-- New Vocabulary Section -->
@@ -59,21 +59,21 @@
                   <h4 class="mb-2 text-xs font-bold tracking-wider uppercase text-slate-500 dark:text-slate-400">New Vocabulary</h4>
                   <div class="flex flex-wrap gap-2">
                     @for(item of message.vocabulary; track item.word) {
-                      <div class="flex items-center p-2 text-sm border rounded-lg bg-slate-100 dark:bg-slate-800 dark:border-slate-700">
+                      <div class="flex items-center p-2 text-sm border rounded-lg shadow-sm bg-white dark:bg-slate-800 dark:border-slate-700">
                         <div class="flex-grow">
-                          <span class="font-semibold text-blue-700 dark:text-blue-400">{{ item.word }}</span>:
+                          <span class="font-semibold text-indigo-600 dark:text-indigo-400">{{ item.word }}</span>:
                           <span class="text-slate-600 dark:text-slate-300">{{ item.translation }}</span>
                         </div>
                         <button (click)="addWordToBank(item)" [disabled]="isWordInBank(item)"
                           class="ml-3 p-1.5 text-xs leading-none rounded-full transition-colors"
                           [class.text-slate-400]="isWordInBank(item)"
                           [class.cursor-not-allowed]="isWordInBank(item)"
-                          [class.bg-slate-200]="isWordInBank(item)"
+                          [class.bg-zinc-200]="isWordInBank(item)"
                           [class.dark:bg-slate-600]="isWordInBank(item)"
-                          [class.text-blue-600]="!isWordInBank(item)"
-                          [class.hover:bg-blue-100]="!isWordInBank(item)"
-                          [class.dark:text-blue-400]="!isWordInBank(item)"
-                          [class.dark:hover:bg-blue-900/50]="!isWordInBank(item)"
+                          [class.text-indigo-500]="!isWordInBank(item)"
+                          [class.hover:bg-indigo-100]="!isWordInBank(item)"
+                          [class.dark:text-indigo-400]="!isWordInBank(item)"
+                          [class.dark:hover:bg-indigo-900/50]="!isWordInBank(item)"
                           [attr.aria-label]="isWordInBank(item) ? 'Saved' : 'Save word'">
                           <i class="fa-solid" [class.fa-check]="isWordInBank(item)" [class.fa-plus]="!isWordInBank(item)"></i>
                         </button>
@@ -84,33 +84,33 @@
               }
             </div>
             @if (isLast && isSpeaking()) {
-              <i class="self-center mb-2 text-blue-500 fa-solid fa-volume-high animate-pulse"></i>
+              <i class="self-center mb-2 text-indigo-500 fa-solid fa-volume-high animate-pulse"></i>
             }
           </div>
         } @else {
           <div class="flex justify-end">
             <div class="flex flex-col items-end w-full max-w-lg">
               <!-- User Message Bubble -->
-              <div class="px-4 py-3 text-white bg-blue-600 rounded-2xl">
+              <div class="px-4 py-3 text-white rounded-2xl bg-gradient-to-br from-indigo-500 to-indigo-600 shadow-md">
                 <p class="text-sm whitespace-pre-wrap">{{ message.text }}</p>
               </div>
               <!-- Pronunciation Feedback -->
               @if(message.pronunciationFeedback; as feedback) {
-                <div class="w-full mt-2 p-3 text-sm border rounded-xl bg-slate-100 dark:bg-slate-700/50 dark:border-slate-600">
-                    <div class="flex items-center justify-between pb-2 mb-2 border-b dark:border-slate-600">
+                <div class="w-full mt-2 p-3 text-sm border rounded-xl shadow-sm bg-white dark:bg-slate-800 dark:border-slate-700">
+                    <div class="flex items-center justify-between pb-2 mb-2 border-b dark:border-slate-700">
                       <h4 class="font-semibold text-slate-700 dark:text-slate-200">Pronunciation Feedback</h4>
                       <div class="flex text-lg space-x-0.5">
                         @for (star of [1,2,3,4,5]; track star) {
                           <i class="fa-solid fa-star" 
-                             [class.text-yellow-400]="star <= feedback.score" 
+                             [class.text-amber-400]="star <= feedback.score" 
                              [class.text-slate-300]="star > feedback.score"
                              [class.dark:text-slate-500]="star > feedback.score"></i>
                         }
                       </div>
                     </div>
                     <p class="text-slate-600 dark:text-slate-300">{{ feedback.feedback }}</p>
-                    <div class="mt-2 pt-2 border-t dark:border-slate-600">
-                      <p class="text-slate-500 dark:text-slate-400"><i class="fa-solid fa-lightbulb mr-2 text-blue-500"></i><span class="font-semibold">Tip:</span> {{ feedback.tip }}</p>
+                    <div class="mt-2 pt-2 border-t dark:border-slate-700">
+                      <p class="text-slate-500 dark:text-slate-400"><i class="fa-solid fa-lightbulb mr-2 text-indigo-500"></i><span class="font-semibold">Tip:</span> {{ feedback.tip }}</p>
                     </div>
                 </div>
               }
@@ -120,7 +120,7 @@
       }
       @if (isLoading() && (!messages().length || messages()[messages().length-1].role === 'user')) {
         <div class="flex justify-start">
-          <div class="max-w-lg px-4 py-3 bg-white rounded-2xl dark:bg-slate-700 text-slate-800 dark:text-slate-200">
+          <div class="max-w-lg px-4 py-3 bg-white rounded-2xl dark:bg-slate-700 shadow-sm">
             <div class="flex items-center space-x-2">
               <div class="w-2 h-2 bg-slate-400 rounded-full animate-pulse [animation-delay:-0.3s]"></div>
               <div class="w-2 h-2 bg-slate-400 rounded-full animate-pulse [animation-delay:-0.15s]"></div>
@@ -140,22 +140,25 @@
   </main>
 
   <!-- Input Area -->
-  <footer class="p-4 bg-white border-t border-slate-200 dark:bg-slate-800 dark:border-slate-700">
+  <footer class="p-4 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md shadow-[0_-2px_5px_rgba(0,0,0,0.05)] dark:shadow-[0_-2px_5px_rgba(0,0,0,0.2)]">
     <div class="flex flex-col items-center justify-center">
       <button 
         (click)="toggleRecording()" 
         [disabled]="isLoading()"
-        class="flex items-center justify-center w-16 h-16 text-white transition-colors duration-200 rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-        [class.bg-red-600]="isRecording()" [class.hover:bg-red-700]="isRecording()"
-        [class.bg-blue-600]="!isRecording()" [class.hover:bg-blue-700]="!isRecording()"
+        class="flex items-center justify-center w-18 h-18 text-white transition-all duration-300 rounded-full shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-slate-900 focus:ring-indigo-500"
+        [class.bg-gradient-to-br]="!isLoading()"
+        [class.from-rose-500]="isRecording()" [class.to-red-600]="isRecording()"
+        [class.from-indigo-500]="!isRecording()" [class.to-violet-600]="!isRecording()"
+        [class.hover:shadow-xl]="!isLoading()"
+        [class.scale-110]="isRecording()"
         [class.bg-slate-400]="isLoading()" [class.dark:bg-slate-600]="isLoading()"
         [class.cursor-not-allowed]="isLoading()">
-        <i class="text-2xl fa-solid" [class.fa-microphone-slash]="isRecording()" [class.fa-microphone]="!isRecording()"></i>
+        <i class="text-3xl fa-solid" [class.fa-microphone-slash]="isRecording()" [class.fa-microphone]="!isRecording()"></i>
       </button>
       @if (isRecording()) {
-        <p class="mt-2 text-sm text-center text-slate-500 dark:text-slate-400">Listening...</p>
+        <p class="mt-3 text-sm font-medium text-center text-slate-500 dark:text-slate-400">Listening...</p>
       } @else {
-        <p class="mt-2 text-sm text-center text-slate-500 dark:text-slate-400">Tap to speak</p>
+        <p class="mt-3 text-sm text-center text-slate-500 dark:text-slate-400">Tap to speak</p>
       }
     </div>
   </footer>
