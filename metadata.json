@@ -1,0 +1,7 @@
+{
+  "name": "French Immersion Companion",
+  "description": "An intelligent, immersive French learning app that guides users from beginner to advanced levels through natural AI conversations, helping them develop confidence and fluency.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
