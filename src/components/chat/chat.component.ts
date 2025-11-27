@@ -20,6 +20,10 @@ interface UserProgress {
   xp: number;
 }
 
+interface UserSettings {
+  speakingRate: number; // 0.75 (slow), 1 (normal), 1.5 (fast)
+}
+
 @Component({
   selector: 'app-chat',
   templateUrl: './chat.component.html',
@@ -50,12 +54,17 @@ export class ChatComponent {
   showLevelUp = signal(false);
   justLeveledUpTo = signal<string | null>(null);
 
+  // Settings
+  userSettings = signal<UserSettings>({ speakingRate: 1 });
+  showSettings = signal(false);
+
   chatContainer = viewChild<ElementRef<HTMLDivElement>>('chatContainer');
 
   private recognition: any = null;
   private frenchVoice: SpeechSynthesisVoice | null = null;
   private readonly VOCAB_STORAGE_KEY = 'french-companion-vocab-bank';
   private readonly PROGRESS_STORAGE_KEY = 'french-companion-progress';
+  private readonly SETTINGS_STORAGE_KEY = 'french-companion-settings';
   private readonly srsIntervalsDays = [1, 3, 7, 14, 30, 60, 120];
 
   private readonly levels = [
@@ -155,6 +164,7 @@ IMPORTANT: Your response MUST be a JSON object with "response", "vocabulary", an
       this.initializeSpeechSynthesis();
       this.loadVocabularyFromStorage();
       this.loadProgressFromStorage();
+      this.loadSettingsFromStorage();
     });
     
     // Auto-scroll effect
@@ -170,6 +180,9 @@ IMPORTANT: Your response MUST be a JSON object with "response", "vocabulary", an
     });
     effect(() => {
       this.saveToStorage(this.PROGRESS_STORAGE_KEY, this.userProgress());
+    });
+     effect(() => {
+      this.saveToStorage(this.SETTINGS_STORAGE_KEY, this.userSettings());
     });
   }
 
@@ -200,6 +213,13 @@ IMPORTANT: Your response MUST be a JSON object with "response", "vocabulary", an
     const storedData = this.loadFromStorage<UserProgress>(this.PROGRESS_STORAGE_KEY);
     if (storedData && storedData.levelIndex < this.levels.length) {
       this.userProgress.set(storedData);
+    }
+  }
+
+  private loadSettingsFromStorage(): void {
+    const storedData = this.loadFromStorage<UserSettings>(this.SETTINGS_STORAGE_KEY);
+    if (storedData) {
+      this.userSettings.set(storedData);
     }
   }
 
@@ -376,6 +396,7 @@ IMPORTANT: Your response MUST be a JSON object with "response", "vocabulary", an
     window.speechSynthesis.cancel();
 
     const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = this.userSettings().speakingRate;
     if (this.frenchVoice) {
       utterance.voice = this.frenchVoice;
     }
@@ -474,6 +495,15 @@ IMPORTANT: Your response MUST be a JSON object with "response", "vocabulary", an
 
   toggleScenarioSelection(): void {
     this.showScenarioSelection.update(v => !v);
+  }
+
+  toggleSettings(): void {
+    this.showSettings.update(v => !v);
+  }
+
+  changeSpeakingRate(rate: number): void {
+    this.userSettings.update(settings => ({ ...settings, speakingRate: rate }));
+    this.showSettings.set(false); // Hide panel after selection
   }
 
   exitScenario(): void {
