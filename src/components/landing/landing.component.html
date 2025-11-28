@@ -1,7 +1,8 @@
+
 <div class="flex flex-col h-screen max-w-5xl mx-auto bg-zinc-50 dark:bg-slate-900">
   <!-- Header -->
   <header class="sticky top-0 z-20 flex items-center justify-between p-4 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md shrink-0 shadow-sm">
-    <div class="flex items-center min-w-0 space-x-4">
+    <div class="flex items-center flex-1 min-w-0 space-x-4">
       <img src="https://robohash.org/ami.png?set=set2&bgset=bg1&size=48x48" alt="Ami avatar" class="w-12 h-12 rounded-full shrink-0 border-2 border-white dark:border-slate-700">
       <div class="w-full">
         <div class="flex justify-between w-full">
@@ -16,6 +17,15 @@
           <div class="bg-indigo-500 h-1.5 rounded-full" [style.width.%]="progressPercentage()"></div>
         </div>
       </div>
+    </div>
+    <div class="flex items-center pl-4 space-x-2">
+      <div class="flex items-center px-3 py-2 space-x-2 text-sm font-semibold rounded-lg bg-zinc-100 dark:bg-slate-700">
+        <i class="fa-solid fa-fire" [class.text-orange-500]="currentStreak() > 0" [class.text-slate-400]="currentStreak() === 0"></i>
+        <span [class.text-slate-700]="currentStreak() > 0" [class.dark:text-slate-200]="currentStreak() > 0" [class.text-slate-400]="currentStreak() === 0">{{ currentStreak() }}</span>
+      </div>
+      <button (click)="onViewAchievements()" title="Achievements" class="flex items-center justify-center w-10 h-10 text-lg transition-colors rounded-full text-slate-500 hover:bg-zinc-100 dark:text-slate-400 dark:hover:bg-slate-700">
+        <i class="fa-solid fa-trophy"></i>
+      </button>
     </div>
   </header>
 

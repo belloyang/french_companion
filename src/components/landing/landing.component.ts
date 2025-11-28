@@ -1,3 +1,4 @@
+
 import { Component, ChangeDetectionStrategy, input, output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Scenario } from '../scenario-selection/scenario-selection.component';
@@ -18,8 +19,10 @@ export class LandingComponent {
   currentLevel = input.required<any>();
   nextLevel = input.required<any | null>();
   progressPercentage = input.required<number>();
+  currentStreak = input.required<number>();
 
   startSession = output<ChatInitialState>();
+  viewAchievements = output<void>();
 
   onStartFreeTalk(): void {
     this.startSession.emit({ type: 'free-talk' });
@@ -35,5 +38,9 @@ export class LandingComponent {
 
   onStartListening(exercise: ListeningExercise): void {
     this.startSession.emit({ type: 'listening', data: exercise });
+  }
+
+  onViewAchievements(): void {
+    this.viewAchievements.emit();
   }
 }

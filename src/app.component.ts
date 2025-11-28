@@ -1,16 +1,37 @@
 
+
 import { ChangeDetectionStrategy, Component, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ChatComponent, ChatInitialState } from './components/chat/chat.component';
+import { ChatComponent, ChatInitialState, SessionStats } from './components/chat/chat.component';
 import { SplashScreenComponent } from './components/splash-screen/splash-screen.component';
 import { LandingComponent } from './components/landing/landing.component';
 import { LevelUpComponent } from './components/level-up/level-up.component';
 import { Scenario } from './components/scenario-selection/scenario-selection.component';
 import { GrammarTopic } from './components/grammar-selection/grammar-selection.component';
+import { AchievementsComponent } from './components/achievements/achievements.component';
+import { AchievementToastComponent } from './components/achievement-toast/achievement-toast.component';
 
 interface UserProgress {
   levelIndex: number;
   xp: number;
+  // Gamification
+  lastSessionDate: string | null; // ISO Date string (YYYY-MM-DD)
+  currentStreak: number;
+  unlockedAchievements: string[]; // Array of achievement IDs
+  stats: {
+    sessionsCompleted: number;
+    wordsSaved: number;
+    scenariosCompleted: string[]; // Array of scenario titles
+    grammarCompleted: string[];   // Array of grammar topic titles
+  };
+}
+
+export interface Achievement {
+  id: string;
+  title: string;
+  description:string;
+  icon: string;
+  check: (stats: UserProgress['stats']) => boolean;
 }
 
 export interface ListeningExercise {
@@ -24,18 +45,34 @@ export interface ListeningExercise {
 @Component({
   selector: 'app-root',
   templateUrl: './app.component.html',
-  // FIX: Corrected typo from Change-DetectionStrategy to ChangeDetectionStrategy
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, ChatComponent, SplashScreenComponent, LandingComponent, LevelUpComponent],
+  imports: [CommonModule, ChatComponent, SplashScreenComponent, LandingComponent, LevelUpComponent, AchievementsComponent, AchievementToastComponent],
 })
 export class AppComponent {
   appState = signal<'splash' | 'landing' | 'chat'>('splash');
   initialChatState = signal<ChatInitialState | null>(null);
 
-  // --- User Progress State (lifted from ChatComponent) ---
-  userProgress = signal<UserProgress>({ levelIndex: 0, xp: 0 });
+  // --- User Progress State ---
+  userProgress = signal<UserProgress>({
+    levelIndex: 0,
+    xp: 0,
+    lastSessionDate: null,
+    currentStreak: 0,
+    unlockedAchievements: [],
+    stats: {
+      sessionsCompleted: 0,
+      wordsSaved: 0,
+      scenariosCompleted: [],
+      grammarCompleted: [],
+    }
+  });
   showLevelUp = signal(false);
   justLeveledUpTo = signal<string | null>(null);
+
+  // --- Gamification State ---
+  showAchievements = signal(false);
+  showAchievementToast = signal(false);
+  justUnlockedAchievement = signal<Achievement | null>(null);
 
   private readonly PROGRESS_STORAGE_KEY = 'french-companion-progress';
   private readonly levels = [
@@ -48,6 +85,17 @@ export class AppComponent {
     { name: 'Advanced I', xpThreshold: 2000 },
     { name: 'Advanced II', xpThreshold: 3000 },
     { name: 'Fluent', xpThreshold: 5000 },
+  ];
+
+  readonly achievements: Achievement[] = [
+    { id: 'starter', title: 'Conversation Starter', description: 'Complete your first session.', icon: 'fa-comment-dots', check: stats => stats.sessionsCompleted >= 1 },
+    { id: 'talkative', title: 'Talkative', description: 'Complete 10 sessions.', icon: 'fa-comments', check: stats => stats.sessionsCompleted >= 10 },
+    { id: 'chatterbox', title: 'Chatterbox', description: 'Complete 50 sessions.', icon: 'fa-microphone-lines', check: stats => stats.sessionsCompleted >= 50 },
+    { id: 'vocab_10', title: 'Word Collector', description: 'Save 10 vocabulary words.', icon: 'fa-book', check: stats => stats.wordsSaved >= 10 },
+    { id: 'vocab_50', title: 'Polyglot', description: 'Save 50 vocabulary words.', icon: 'fa-book-bookmark', check: stats => stats.wordsSaved >= 50 },
+    { id: 'vocab_100', title: 'Lexicographer', description: 'Save 100 vocabulary words.', icon: 'fa-spell-check', check: stats => stats.wordsSaved >= 100 },
+    { id: 'scenario_master', title: 'Scenario Master', description: 'Complete all available scenarios.', icon: 'fa-masks-theater', check: stats => this.scenarios.every(s => stats.scenariosCompleted.includes(s.title)) },
+    { id: 'grammar_master', title: 'Grammar Guru', description: 'Complete all available grammar topics.', icon: 'fa-graduation-cap', check: stats => this.grammarTopics.every(g => stats.grammarCompleted.includes(g.title)) },
   ];
 
   currentLevel = computed(() => this.levels[this.userProgress().levelIndex]);
@@ -162,6 +210,7 @@ The JSON object must have the following properties:
   
   constructor() {
     this.loadProgressFromStorage();
+    this.checkDailyStreak();
   }
 
   onSplashAnimationDone(): void {
@@ -173,28 +222,107 @@ The JSON object must have the following properties:
     this.appState.set('chat');
   }
   
-  onSessionEnded(): void {
+  onSessionEnded(sessionStats: SessionStats): void {
+    this.updateProgress(sessionStats);
     this.appState.set('landing');
   }
 
   onXpGained(amount: number): void {
     const currentProgress = this.userProgress();
     const newXp = currentProgress.xp + amount;
-    this.userProgress.set({ ...currentProgress, xp: newXp });
-    this.saveProgressToStorage();
+    this.userProgress.update(p => ({ ...p, xp: newXp }));
 
     const nextLevel = this.nextLevel();
     if (nextLevel && newXp >= nextLevel.xpThreshold) {
       const newLevelIndex = currentProgress.levelIndex + 1;
-      this.userProgress.update(progress => ({ ...progress, levelIndex: newLevelIndex }));
-      this.saveProgressToStorage();
+      this.userProgress.update(p => ({ ...p, levelIndex: newLevelIndex }));
       this.justLeveledUpTo.set(this.levels[newLevelIndex].name);
       this.showLevelUp.set(true);
     }
+     this.saveProgressToStorage();
   }
 
   closeLevelUpModal(): void {
     this.showLevelUp.set(false);
+  }
+
+  // --- Gamification Handlers ---
+  openAchievementsModal(): void {
+    this.showAchievements.set(true);
+  }
+
+  closeAchievementsModal(): void {
+    this.showAchievements.set(false);
+  }
+
+  closeAchievementToast(): void {
+    this.showAchievementToast.set(false);
+  }
+
+  private updateProgress(sessionStats: SessionStats): void {
+    this.userProgress.update(p => {
+      const newStats = { ...p.stats };
+      newStats.sessionsCompleted += 1;
+      newStats.wordsSaved += sessionStats.wordsSaved;
+      
+      if(sessionStats.scenarioCompleted) {
+        if(!newStats.scenariosCompleted.includes(sessionStats.scenarioCompleted)) {
+          newStats.scenariosCompleted.push(sessionStats.scenarioCompleted);
+        }
+      }
+      if(sessionStats.grammarCompleted) {
+         if(!newStats.grammarCompleted.includes(sessionStats.grammarCompleted)) {
+          newStats.grammarCompleted.push(sessionStats.grammarCompleted);
+        }
+      }
+
+      return { ...p, stats: newStats };
+    });
+
+    this.checkAchievements();
+    this.saveProgressToStorage();
+  }
+
+  private checkAchievements(): void {
+    const unlockedSoFar = new Set(this.userProgress().unlockedAchievements);
+    
+    for (const achievement of this.achievements) {
+      if (!unlockedSoFar.has(achievement.id)) {
+        if (achievement.check(this.userProgress().stats)) {
+          this.userProgress.update(p => ({
+            ...p,
+            unlockedAchievements: [...p.unlockedAchievements, achievement.id]
+          }));
+          this.justUnlockedAchievement.set(achievement);
+          this.showAchievementToast.set(true);
+        }
+      }
+    }
+  }
+  
+  private checkDailyStreak(): void {
+    const today = new Date().toISOString().split('T')[0];
+    const lastSession = this.userProgress().lastSessionDate;
+
+    if (lastSession === today) {
+      // Already practiced today, do nothing.
+      return;
+    }
+    
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toISOString().split('T')[0];
+    
+    this.userProgress.update(p => {
+      let newStreak = p.currentStreak;
+      if (lastSession === yesterdayStr) {
+        newStreak += 1; // Continue streak
+      } else {
+        newStreak = 1; // Reset or start streak
+      }
+      return { ...p, currentStreak: newStreak, lastSessionDate: today };
+    });
+    this.saveProgressToStorage();
   }
 
   private loadProgressFromStorage(): void {
@@ -202,8 +330,17 @@ The JSON object must have the following properties:
       const storedData = localStorage.getItem(this.PROGRESS_STORAGE_KEY);
       if (storedData) {
         const parsedData = JSON.parse(storedData) as UserProgress;
-        if (parsedData && parsedData.levelIndex < this.levels.length) {
-          this.userProgress.set(parsedData);
+        // Basic validation
+        if (parsedData && typeof parsedData.levelIndex === 'number') {
+          // Ensure all properties exist to avoid errors with older data structures
+          const defaultProgress = {
+              levelIndex: 0, xp: 0, lastSessionDate: null, currentStreak: 0,
+              unlockedAchievements: [],
+              stats: { sessionsCompleted: 0, wordsSaved: 0, scenariosCompleted: [], grammarCompleted: [] }
+          };
+          const mergedProgress = { ...defaultProgress, ...parsedData };
+          mergedProgress.stats = { ...defaultProgress.stats, ...(parsedData.stats || {}) };
+          this.userProgress.set(mergedProgress);
         }
       }
     } catch (e) {

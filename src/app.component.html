@@ -1,3 +1,4 @@
+
 @switch (appState()) {
   @case ('splash') {
     <app-splash-screen (animationDone)="onSplashAnimationDone()"></app-splash-screen>
@@ -11,22 +12,41 @@
       [currentLevel]="currentLevel()"
       [nextLevel]="nextLevel()"
       [progressPercentage]="progressPercentage()"
-      (startSession)="onStartSession($event)">
+      [currentStreak]="userProgress().currentStreak"
+      (startSession)="onStartSession($event)"
+      (viewAchievements)="openAchievementsModal()">
     </app-landing>
   }
   @case ('chat') {
     <app-chat 
       [initialState]="initialChatState()!"
-      (sessionEnded)="onSessionEnded()"
+      (sessionEnded)="onSessionEnded($event)"
       (xpGained)="onXpGained($event)">
     </app-chat>
   }
 }
 
-<!-- Level Up Modal is now managed at the root level -->
+<!-- Level Up Modal -->
 @if (showLevelUp()) {
   <app-level-up 
     [newLevelName]="justLeveledUpTo()!"
     (close)="closeLevelUpModal()">
   </app-level-up>
+}
+
+<!-- Achievements Modal -->
+@if (showAchievements()) {
+  <app-achievements
+    [achievements]="achievements"
+    [unlockedAchievementIds]="userProgress().unlockedAchievements"
+    (close)="closeAchievementsModal()">
+  </app-achievements>
+}
+
+<!-- Achievement Unlocked Toast -->
+@if (showAchievementToast()) {
+  <app-achievement-toast
+    [achievement]="justUnlockedAchievement()!"
+    (close)="closeAchievementToast()">
+  </app-achievement-toast>
 }

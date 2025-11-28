@@ -1,0 +1,35 @@
+
+<div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm" (click)="closeModal()">
+  <div class="relative w-full max-w-2xl max-h-[90vh] flex flex-col p-6 mx-4 bg-white rounded-xl shadow-xl dark:bg-slate-800 animate-scale-in" (click)="$event.stopPropagation()">
+    <header class="flex items-center justify-between pb-4 border-b shrink-0 dark:border-slate-700">
+      <h2 class="text-xl font-bold text-slate-800 dark:text-white">Achievements</h2>
+      <button (click)="closeModal()" class="text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white">
+        <i class="text-2xl fa-solid fa-xmark"></i>
+      </button>
+    </header>
+    <main class="flex-1 mt-4 -mr-2 overflow-y-auto pr-2">
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        @for(achievement of achievements(); track achievement.id) {
+          <div class="flex flex-col items-center p-5 text-center transition-opacity border rounded-xl dark:border-slate-700"
+            [class.bg-white]="isUnlocked(achievement.id)"
+            [class.dark:bg-slate-800]="isUnlocked(achievement.id)"
+            [class.bg-zinc-50]="!isUnlocked(achievement.id)"
+            [class.dark:bg-slate-800/50]="!isUnlocked(achievement.id)"
+            [class.opacity-50]="!isUnlocked(achievement.id)">
+            
+            <div class="flex items-center justify-center w-16 h-16 text-3xl text-white rounded-full"
+                 [class.bg-gradient-to-br]="isUnlocked(achievement.id)"
+                 [class.from-amber-400]="isUnlocked(achievement.id)"
+                 [class.to-orange-500]="isUnlocked(achievement.id)"
+                 [class.bg-slate-300]="!isUnlocked(achievement.id)"
+                 [class.dark:bg-slate-600]="!isUnlocked(achievement.id)">
+              <i class="fa-solid {{ achievement.icon }}"></i>
+            </div>
+            <h3 class="mt-4 font-bold text-slate-800 dark:text-white">{{ achievement.title }}</h3>
+            <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ achievement.description }}</p>
+          </div>
+        }
+      </div>
+    </main>
+  </div>
+</div>

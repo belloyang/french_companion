@@ -1,3 +1,4 @@
+
 import {
   Component,
   ChangeDetectionStrategy,
@@ -27,6 +28,11 @@ export type ChatInitialState =
   | { type: 'grammar', data: GrammarTopic }
   | { type: 'listening', data: ListeningExercise };
 
+export interface SessionStats {
+  wordsSaved: number;
+  scenarioCompleted: string | null;
+  grammarCompleted: string | null;
+}
 
 interface UserSettings {
   speakingRate: number; // 0.75 (slow), 1 (normal), 1.5 (fast)
@@ -54,7 +60,7 @@ interface SavedConversationState {
 export class ChatComponent {
   // --- Inputs / Outputs ---
   initialState = input.required<ChatInitialState>();
-  sessionEnded = output<void>();
+  sessionEnded = output<SessionStats>();
   xpGained = output<number>();
 
   private geminiService = inject(GeminiService);
@@ -96,6 +102,9 @@ export class ChatComponent {
   // Settings
   userSettings = signal<UserSettings>({ speakingRate: 1, tutorName: 'Ami' });
   showSettings = signal(false);
+
+  // Session Stats for Gamification
+  private sessionStats: SessionStats = { wordsSaved: 0, scenarioCompleted: null, grammarCompleted: null };
 
   chatContainer = viewChild<ElementRef<HTMLDivElement>>('chatContainer');
 
@@ -239,6 +248,7 @@ Always respond in French. When I make a mistake, provide a detailed correction a
     this.activeGrammarTopic.set(null);
     this.activeMicroLesson.set(null);
     this.activeListeningExercise.set(null);
+    this.sessionStats = { wordsSaved: 0, scenarioCompleted: null, grammarCompleted: null };
 
     let systemInstruction = '';
     let openingPrompt = '';
@@ -526,6 +536,8 @@ Always respond in French. When I make a mistake, provide a detailed correction a
       if (currentBank.some(item => item.word.toLowerCase() === wordToAdd.word.toLowerCase())) {
         return currentBank;
       }
+      
+      this.sessionStats.wordsSaved++;
 
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
@@ -682,10 +694,14 @@ Always respond in French. When I make a mistake, provide a detailed correction a
   // --- Session Review Logic ---
   async endSessionAndShowReview(): Promise<void> {
     if (this.messages().filter(m => m.role === 'user').length < 1 && !this.activeListeningExercise()) {
-      this.sessionEnded.emit();
+      this.sessionEnded.emit(this.sessionStats);
       return;
     }
     
+    // Set completion stats for achievements
+    if(this.activeScenario()) this.sessionStats.scenarioCompleted = this.activeScenario()!.title;
+    if(this.activeGrammarTopic()) this.sessionStats.grammarCompleted = this.activeGrammarTopic()!.title;
+
     this.isReviewLoading.set(true);
     this.showSessionReview.set(true);
 
@@ -708,7 +724,7 @@ Always respond in French. When I make a mistake, provide a detailed correction a
     this.showSessionReview.set(false);
     this.sessionReviewData.set(null);
     this.unsavedWordsFromSession.set([]);
-    this.sessionEnded.emit();
+    this.sessionEnded.emit(this.sessionStats);
   }
 
   saveAllUnsavedWords(): void {
