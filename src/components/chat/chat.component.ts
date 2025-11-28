@@ -10,11 +10,12 @@ import {
   computed,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { GeminiService, Message, VocabularyItem, VocabularyBankItem } from '../../services/gemini.service';
+import { GeminiService, Message, VocabularyItem, VocabularyBankItem, SessionReview } from '../../services/gemini.service';
 import { VocabularyBankComponent } from '../vocabulary-bank/vocabulary-bank.component';
 import { ScenarioSelectionComponent, Scenario } from '../scenario-selection/scenario-selection.component';
 import { GrammarSelectionComponent, GrammarTopic } from '../grammar-selection/grammar-selection.component';
 import { LevelUpComponent } from '../level-up/level-up.component';
+import { SessionReviewComponent } from '../session-review/session-review.component';
 
 interface UserProgress {
   levelIndex: number;
@@ -38,7 +39,7 @@ interface Tutor {
 @Component({
   selector: 'app-chat',
   templateUrl: './chat.component.html',
-  imports: [CommonModule, VocabularyBankComponent, ScenarioSelectionComponent, LevelUpComponent, GrammarSelectionComponent],
+  imports: [CommonModule, VocabularyBankComponent, ScenarioSelectionComponent, LevelUpComponent, GrammarSelectionComponent, SessionReviewComponent],
 })
 export class ChatComponent {
   private geminiService = inject(GeminiService);
@@ -63,6 +64,12 @@ export class ChatComponent {
   showGrammarSelection = signal(false);
   activeGrammarTopic = signal<GrammarTopic | null>(null);
   
+  // Session Review State
+  showSessionReview = signal(false);
+  isReviewLoading = signal(false);
+  sessionReviewData = signal<SessionReview | null>(null);
+  unsavedWordsFromSession = signal<VocabularyItem[]>([]);
+
   // User Progress
   userProgress = signal<UserProgress>({ levelIndex: 0, xp: 0 });
   showLevelUp = signal(false);
@@ -259,6 +266,15 @@ Wait for my response. Correct me if needed. After a few 'avoir' verbs, introduce
     return {};
   });
 
+  // --- UI Helpers ---
+  readonly circumference = 2 * Math.PI * 20; // Corresponds to r="20" in the SVG
+
+  calculateScoreOffset(score: number): number {
+    if (score < 1) score = 1;
+    if (score > 5) score = 5;
+    return this.circumference - (score / 5) * this.circumference;
+  }
+
   // --- Component Lifecycle ---
   constructor() {
     afterNextRender(() => {
@@ -266,18 +282,16 @@ Wait for my response. Correct me if needed. After a few 'avoir' verbs, introduce
       this.loadProgressFromStorage();
       this.loadSettingsFromStorage();
       this.initializeSpeechRecognition();
-      this.initializeSpeechSynthesis(); // Depends on settings
-      this.initializeChat(); // Depends on settings
+      this.initializeSpeechSynthesis();
+      this.initializeChat();
     });
     
-    // Auto-scroll effect
     effect(() => {
       if (this.chatContainer() && this.messages().length > 0) {
         this.scrollToBottom();
       }
     });
 
-    // Auto-save effects
     effect(() => {
       this.saveToStorage(this.VOCAB_STORAGE_KEY, this.vocabularyBank());
     });
@@ -334,11 +348,9 @@ Wait for my response. Correct me if needed. After a few 'avoir' verbs, introduce
       const setVoice = () => {
         const voices = window.speechSynthesis.getVoices();
         const tutor = this.activeTutor();
-        // Try to find the specific voice for the tutor
         if (tutor.voiceName) {
             this.frenchVoice = voices.find(voice => voice.name === tutor.voiceName && voice.lang.startsWith('fr')) || null;
         }
-        // If not found, fall back to the first available French voice
         if (!this.frenchVoice) {
             this.frenchVoice = voices.find(voice => voice.lang.startsWith('fr')) || null;
         }
@@ -425,7 +437,6 @@ Wait for my response. Correct me if needed. After a few 'avoir' verbs, introduce
 
   toggleChatMode(): void {
     this.chatMode.update(current => (current === 'voice' ? 'text' : 'voice'));
-    // Stop any ongoing speech or recording when switching modes
     if (this.isSpeaking()) {
       window.speechSynthesis.cancel();
       this.isSpeaking.set(false);
@@ -442,7 +453,7 @@ Wait for my response. Correct me if needed. After a few 'avoir' verbs, introduce
     }
 
     this.messages.update(current => [...current, userMessage]);
-    this.addXp(1); // +1 XP for sending a message
+    this.addXp(1);
     this.isLoading.set(true);
     this.error.set(null);
 
@@ -461,7 +472,7 @@ Wait for my response. Correct me if needed. After a few 'avoir' verbs, introduce
 
         if (lastUserMsgIndex !== -1 && userFeedback) {
           newMessages[lastUserMsgIndex] = { ...newMessages[lastUserMsgIndex], pronunciationFeedback: userFeedback };
-          this.addXp(userFeedback.score); // +1-5 XP for pronunciation
+          this.addXp(userFeedback.score);
         }
         
         return [...newMessages, modelResponse];
@@ -606,7 +617,7 @@ Wait for my response. Correct me if needed. After a few 'avoir' verbs, introduce
       newBank[wordIndex] = updatedWord;
       return newBank;
     });
-    this.addXp(15); // +15 XP for reviewing a word
+    this.addXp(15);
   }
 
   // --- XP & Leveling Logic ---
@@ -652,17 +663,54 @@ Wait for my response. Correct me if needed. After a few 'avoir' verbs, introduce
       return;
     }
     this.userSettings.update(settings => ({ ...settings, tutorName }));
-    this.initializeSpeechSynthesis(); // Update voice
-    this.initializeChat(); // Restart conversation
+    this.initializeSpeechSynthesis();
+    this.initializeChat();
     this.showSettings.set(false);
   }
 
   exitSpecialMode(): void {
-    this.initializeChat();
+    this.endSessionAndShowReview();
   }
 
   closeLevelUpModal(): void {
     this.showLevelUp.set(false);
+  }
+
+  // --- Session Review Logic ---
+  async endSessionAndShowReview(): Promise<void> {
+    if (this.messages().filter(m => m.role === 'user').length < 2) {
+      this.initializeChat();
+      return;
+    }
+    
+    this.isReviewLoading.set(true);
+    this.showSessionReview.set(true);
+
+    const savedWords = new Set(this.vocabularyBank().map(item => item.word.toLowerCase()));
+    const allVocabInSession = this.messages().flatMap(msg => msg.vocabulary || []);
+    const uniqueVocabMap = new Map<string, VocabularyItem>();
+    allVocabInSession.forEach(item => {
+      uniqueVocabMap.set(item.word.toLowerCase(), item);
+    });
+    
+    const uniqueVocab = Array.from(uniqueVocabMap.values());
+    this.unsavedWordsFromSession.set(uniqueVocab.filter(item => !savedWords.has(item.word.toLowerCase())));
+
+    const reviewData = await this.geminiService.getSessionReview(this.messages());
+    this.sessionReviewData.set(reviewData);
+    this.isReviewLoading.set(false);
+  }
+
+  closeSessionReview(): void {
+    this.showSessionReview.set(false);
+    this.sessionReviewData.set(null);
+    this.unsavedWordsFromSession.set([]);
+    this.initializeChat();
+  }
+
+  saveAllUnsavedWords(): void {
+    this.unsavedWordsFromSession().forEach(word => this.addWordToBank(word));
+    this.unsavedWordsFromSession.set([]);
   }
 
   // --- Utility ---

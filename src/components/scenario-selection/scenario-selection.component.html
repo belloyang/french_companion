@@ -1,5 +1,5 @@
 <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm" (click)="closeModal()">
-  <div class="relative w-full max-w-2xl max-h-[90vh] flex flex-col p-6 mx-4 bg-white rounded-xl shadow-xl dark:bg-slate-800" (click)="$event.stopPropagation()">
+  <div class="relative w-full max-w-2xl max-h-[90vh] flex flex-col p-6 mx-4 bg-white rounded-xl shadow-xl dark:bg-slate-800 animate-scale-in" (click)="$event.stopPropagation()">
     <header class="flex items-center justify-between pb-4 border-b shrink-0 dark:border-slate-700">
       <h2 class="text-xl font-bold text-slate-800 dark:text-white">Choose a Scenario</h2>
       <button (click)="closeModal()" class="text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white">
@@ -9,7 +9,7 @@
     <main class="flex-1 mt-4 -mr-2 overflow-y-auto pr-2">
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         @for(scenario of scenarios(); track scenario.title) {
-          <button (click)="onSelect(scenario)" class="flex flex-col items-start p-5 text-left transition-colors border rounded-xl hover:bg-zinc-50 dark:border-slate-700 dark:hover:bg-slate-700/50 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          <button (click)="onSelect(scenario)" class="flex flex-col items-start p-5 text-left transition-transform border rounded-xl hover:bg-zinc-50 dark:border-slate-700 dark:hover:bg-slate-700/50 focus:outline-none focus:ring-2 focus:ring-indigo-500 hover:scale-105 active:scale-100">
             <div class="flex items-center justify-center w-12 h-12 text-xl text-white bg-indigo-500 rounded-lg">
               <i class="fa-solid {{ scenario.icon }}"></i>
             </div>

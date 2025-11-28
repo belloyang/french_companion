@@ -1,0 +1,136 @@
+<div class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-scale-in">
+  <div class="relative w-full max-w-4xl max-h-[90vh] flex flex-col mx-4 bg-zinc-50 rounded-xl shadow-xl dark:bg-slate-900">
+    <header class="flex items-center justify-between p-6 border-b shrink-0 dark:border-slate-800">
+      <h2 class="text-2xl font-bold text-slate-800 dark:text-white">Session Review</h2>
+      <button (click)="onClose()" class="text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white">
+        <i class="text-2xl fa-solid fa-xmark"></i>
+      </button>
+    </header>
+
+    @if (isLoading()) {
+      <div class="flex flex-col items-center justify-center flex-1 p-8 text-center">
+        <div class="relative flex items-center justify-center w-24 h-24">
+            <i class="text-4xl text-indigo-500 fa-solid fa-brain animate-pulse"></i>
+        </div>
+        <p class="mt-4 text-xl font-semibold text-slate-700 dark:text-slate-200">Analyzing your session...</p>
+        <p class="mt-1 text-slate-500 dark:text-slate-400">This may take a moment.</p>
+      </div>
+    } @else if (reviewData(); as data) {
+      <main class="flex-1 p-6 overflow-y-auto">
+        <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <!-- Metrics Column -->
+          <div class="flex flex-col col-span-1 gap-6">
+            <!-- Summary Card -->
+            <div class="p-6 bg-white rounded-lg shadow-sm dark:bg-slate-800">
+              <h3 class="text-lg font-semibold text-slate-800 dark:text-slate-100">Summary</h3>
+              <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">{{ data.overallSummary }}</p>
+            </div>
+            <!-- Metrics Card -->
+            <div class="p-6 bg-white rounded-lg shadow-sm dark:bg-slate-800">
+                <h3 class="mb-4 text-lg font-semibold text-slate-800 dark:text-slate-100">Key Metrics</h3>
+                <div class="space-y-6">
+                  <!-- Fluency -->
+                  <div class="flex items-center">
+                      <div class="relative flex-shrink-0 flex items-center justify-center w-16 h-16">
+                          <svg class="w-full h-full transform -rotate-90" viewBox="0 0 60 60">
+                              <circle class="text-slate-200 dark:text-slate-700" stroke-width="6" stroke="currentColor" fill="transparent" r="28" cx="30" cy="30" />
+                              <circle class="text-teal-500 transition-all duration-700 ease-in-out" stroke-width="6" [style.stroke-dasharray]="circumference" [style.stroke-dashoffset]="calculateScoreOffset(data.fluency.score)" stroke-linecap="round" stroke="currentColor" fill="transparent" r="28" cx="30" cy="30" />
+                          </svg>
+                          <span class="absolute text-xl font-bold text-slate-700 dark:text-slate-200">{{data.fluency.score}}</span>
+                      </div>
+                      <div class="ml-4">
+                          <h4 class="font-semibold text-slate-700 dark:text-slate-200">Fluency</h4>
+                          <p class="text-xs text-slate-500 dark:text-slate-400">{{data.fluency.feedback}}</p>
+                      </div>
+                  </div>
+                  <!-- Accuracy -->
+                  <div class="flex items-center">
+                       <div class="relative flex-shrink-0 flex items-center justify-center w-16 h-16">
+                          <svg class="w-full h-full transform -rotate-90" viewBox="0 0 60 60">
+                              <circle class="text-slate-200 dark:text-slate-700" stroke-width="6" stroke="currentColor" fill="transparent" r="28" cx="30" cy="30" />
+                              <circle class="text-indigo-500 transition-all duration-700 ease-in-out" stroke-width="6" [style.stroke-dasharray]="circumference" [style.stroke-dashoffset]="calculateScoreOffset(data.accuracy.score)" stroke-linecap="round" stroke="currentColor" fill="transparent" r="28" cx="30" cy="30" />
+                          </svg>
+                          <span class="absolute text-xl font-bold text-slate-700 dark:text-slate-200">{{data.accuracy.score}}</span>
+                      </div>
+                      <div class="ml-4">
+                          <h4 class="font-semibold text-slate-700 dark:text-slate-200">Accuracy</h4>
+                          <p class="text-xs text-slate-500 dark:text-slate-400">{{data.accuracy.feedback}}</p>
+                      </div>
+                  </div>
+                  <!-- Vocabulary -->
+                   <div class="flex items-center">
+                       <div class="relative flex-shrink-0 flex items-center justify-center w-16 h-16">
+                          <svg class="w-full h-full transform -rotate-90" viewBox="0 0 60 60">
+                              <circle class="text-slate-200 dark:text-slate-700" stroke-width="6" stroke="currentColor" fill="transparent" r="28" cx="30" cy="30" />
+                              <circle class="text-amber-500 transition-all duration-700 ease-in-out" stroke-width="6" [style.stroke-dasharray]="circumference" [style.stroke-dashoffset]="calculateScoreOffset(data.vocabularyUsage.score)" stroke-linecap="round" stroke="currentColor" fill="transparent" r="28" cx="30" cy="30" />
+                          </svg>
+                          <span class="absolute text-xl font-bold text-slate-700 dark:text-slate-200">{{data.vocabularyUsage.score}}</span>
+                      </div>
+                      <div class="ml-4">
+                          <h4 class="font-semibold text-slate-700 dark:text-slate-200">Vocabulary</h4>
+                          <p class="text-xs text-slate-500 dark:text-slate-400">{{data.vocabularyUsage.feedback}}</p>
+                      </div>
+                  </div>
+                </div>
+            </div>
+          </div>
+
+          <!-- Main Content Column -->
+          <div class="col-span-1 lg:col-span-2 space-y-6">
+            <!-- Recurring Mistakes -->
+            <div class="p-6 bg-white rounded-lg shadow-sm dark:bg-slate-800">
+                <h3 class="text-lg font-semibold text-slate-800 dark:text-slate-100">Recurring Mistakes</h3>
+                @if(data.recurringMistakes.length > 0) {
+                    <div class="mt-4 space-y-4">
+                        @for(mistake of data.recurringMistakes; track $index) {
+                            <div class="p-4 border rounded-md dark:border-slate-700">
+                                <p class="text-sm text-slate-500 dark:text-slate-400">You said: <span class="italic text-red-500 line-through">"{{mistake.user_text}}"</span></p>
+                                <p class="mt-1 text-sm text-slate-700 dark:text-slate-300">Correction: <span class="font-semibold text-emerald-600 dark:text-emerald-400">"{{mistake.correction}}"</span></p>
+                                <p class="mt-2 text-xs text-slate-600 dark:text-slate-400"><i class="mr-1 text-indigo-500 fa-solid fa-circle-info"></i>{{mistake.explanation}}</p>
+                            </div>
+                        }
+                    </div>
+                } @else {
+                    <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">Great job! No recurring mistakes were detected in this session.</p>
+                }
+            </div>
+            <!-- Words to Practice -->
+            <div class="p-6 bg-white rounded-lg shadow-sm dark:bg-slate-800">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-lg font-semibold text-slate-800 dark:text-slate-100">Words to Practice</h3>
+                    @if(unsavedWords().length > 0) {
+                        <button (click)="onSaveAll()" class="px-3 py-1.5 text-xs font-semibold text-white bg-indigo-500 rounded-md hover:bg-indigo-600">
+                            <i class="mr-2 fa-solid fa-plus"></i>Save All ({{unsavedWords().length}})
+                        </button>
+                    }
+                </div>
+                 @if(unsavedWords().length > 0) {
+                    <div class="grid grid-cols-1 gap-3 mt-4 sm:grid-cols-2">
+                        @for(item of unsavedWords(); track item.word) {
+                            <div class="p-2 text-sm rounded-md bg-zinc-50 dark:bg-slate-700/50">
+                                <span class="font-semibold text-indigo-600 dark:text-indigo-400">{{ item.word }}</span>:
+                                <span class="text-slate-600 dark:text-slate-300">{{ item.translation }}</span>
+                            </div>
+                        }
+                    </div>
+                } @else {
+                     <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">You've saved all the new vocabulary from this session!</p>
+                }
+            </div>
+          </div>
+        </div>
+      </main>
+    } @else {
+        <div class="flex flex-col items-center justify-center flex-1 p-8 text-center">
+            <i class="text-4xl text-red-500 fa-solid fa-circle-exclamation"></i>
+            <p class="mt-4 text-xl font-semibold text-slate-700 dark:text-slate-200">Analysis Failed</p>
+            <p class="mt-1 text-slate-500 dark:text-slate-400">We couldn't generate a review for this session. Please try again later.</p>
+        </div>
+    }
+    <footer class="flex justify-end p-4 border-t shrink-0 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-b-xl">
+        <button (click)="onClose()" class="px-6 py-3 font-semibold text-white bg-indigo-500 rounded-lg hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-slate-900">
+            Start New Session
+        </button>
+    </footer>
+  </div>
+</div>
