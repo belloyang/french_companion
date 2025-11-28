@@ -1,9 +1,12 @@
 
+
+
+
 <div class="flex flex-col h-screen max-w-5xl mx-auto bg-zinc-50 dark:bg-slate-900">
   <!-- Header -->
   <header class="sticky top-0 z-20 flex items-center justify-between p-4 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md shrink-0 shadow-sm">
     <div class="flex items-center flex-1 min-w-0 space-x-4">
-      <img src="https://robohash.org/ami.png?set=set2&bgset=bg1&size=48x48" alt="Ami avatar" class="w-12 h-12 rounded-full shrink-0 border-2 border-white dark:border-slate-700">
+      <img [src]="activeTutor().avatar + '&size=48x48'" [alt]="activeTutor().name + ' avatar'" class="w-12 h-12 rounded-full shrink-0 border-2 border-white dark:border-slate-700">
       <div class="w-full">
         <div class="flex justify-between w-full">
            <h1 class="text-base font-bold text-slate-800 dark:text-white">{{ currentLevel().name }}</h1>
@@ -50,6 +53,42 @@
           <i class="ml-auto text-3xl text-indigo-300 fa-solid fa-arrow-right"></i>
         </div>
       </button>
+    </section>
+
+     <!-- Session Settings -->
+    <section class="mt-8">
+      <h2 class="text-xl font-semibold text-slate-700 dark:text-slate-200">Session Settings</h2>
+      <div class="grid grid-cols-1 gap-6 p-6 mt-4 bg-white border rounded-xl sm:grid-cols-2 dark:bg-slate-800 dark:border-slate-700">
+        <!-- Tutor Selection -->
+        <div>
+            <h3 class="text-sm font-semibold text-slate-800 dark:text-slate-100">Choose your Tutor</h3>
+            <div class="mt-3 space-y-2">
+              @for(tutor of tutors(); track tutor.name) {
+                <button (click)="changeTutor(tutor.name)" class="flex items-center w-full p-2 text-left transition-colors rounded-lg hover:bg-zinc-100 dark:hover:bg-slate-700/50"
+                  [class.bg-indigo-50]="userSettings().tutorName === tutor.name"
+                  [class.dark:bg-indigo-900/30]="userSettings().tutorName === tutor.name">
+                  <img [src]="tutor.avatar + '&size=40x40'" [alt]="tutor.name + ' avatar'" class="w-10 h-10 rounded-full shrink-0">
+                  <div class="ml-3">
+                    <h4 class="text-sm font-semibold text-slate-800 dark:text-slate-100">{{tutor.name}}</h4>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">{{tutor.description}}</p>
+                  </div>
+                   @if (userSettings().tutorName === tutor.name) { 
+                     <i class="ml-auto text-lg fa-solid fa-check-circle text-indigo-500"></i> 
+                   }
+                </button>
+              }
+            </div>
+        </div>
+        <!-- Speed Controls -->
+        <div>
+          <h3 class="text-sm font-semibold text-slate-800 dark:text-slate-100">AI Speaking Speed</h3>
+          <div class="flex p-1 mt-3 space-x-1 bg-zinc-100 dark:bg-slate-900/50 rounded-lg">
+            <button (click)="changeSpeakingRate(0.75)" class="w-full px-2 py-1 text-sm rounded-md transition-colors" [class.bg-white]="userSettings().speakingRate === 0.75" [class.dark:bg-slate-700]="userSettings().speakingRate === 0.75" [class.text-indigo-500]="userSettings().speakingRate === 0.75">Slow</button>
+            <button (click)="changeSpeakingRate(1)" class="w-full px-2 py-1 text-sm rounded-md transition-colors" [class.bg-white]="userSettings().speakingRate === 1" [class.dark:bg-slate-700]="userSettings().speakingRate === 1" [class.text-indigo-500]="userSettings().speakingRate === 1">Normal</button>
+            <button (click)="changeSpeakingRate(1.5)" class="w-full px-2 py-1 text-sm rounded-md transition-colors" [class.bg-white]="userSettings().speakingRate === 1.5" [class.dark:bg-slate-700]="userSettings().speakingRate === 1.5" [class.text-indigo-500]="userSettings().speakingRate === 1.5">Fast</button>
+          </div>
+        </div>
+      </div>
     </section>
 
     <!-- Listening Exercises -->

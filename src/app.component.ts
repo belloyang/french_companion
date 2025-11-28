@@ -1,5 +1,6 @@
 
 
+
 import { ChangeDetectionStrategy, Component, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ChatComponent, ChatInitialState, SessionStats } from './components/chat/chat.component';
@@ -11,6 +12,7 @@ import { GrammarTopic } from './components/grammar-selection/grammar-selection.c
 import { AchievementsComponent } from './components/achievements/achievements.component';
 import { AchievementToastComponent } from './components/achievement-toast/achievement-toast.component';
 
+// --- Global Interfaces ---
 interface UserProgress {
   levelIndex: number;
   xp: number;
@@ -24,6 +26,19 @@ interface UserProgress {
     scenariosCompleted: string[]; // Array of scenario titles
     grammarCompleted: string[];   // Array of grammar topic titles
   };
+}
+
+export interface UserSettings {
+  speakingRate: number; // 0.75 (slow), 1 (normal), 1.5 (fast)
+  tutorName: string;
+}
+
+export interface Tutor {
+  name: string;
+  avatar: string;
+  description: string;
+  systemInstruction: string;
+  voiceName?: string;
 }
 
 export interface Achievement {
@@ -69,12 +84,17 @@ export class AppComponent {
   showLevelUp = signal(false);
   justLeveledUpTo = signal<string | null>(null);
 
+  // --- User Settings State ---
+  userSettings = signal<UserSettings>({ speakingRate: 1, tutorName: 'Ami' });
+
   // --- Gamification State ---
   showAchievements = signal(false);
   showAchievementToast = signal(false);
   justUnlockedAchievement = signal<Achievement | null>(null);
 
   private readonly PROGRESS_STORAGE_KEY = 'french-companion-progress';
+  private readonly SETTINGS_STORAGE_KEY = 'french-companion-settings';
+  
   private readonly levels = [
     { name: 'Beginner I', xpThreshold: 0 },
     { name: 'Beginner II', xpThreshold: 100 },
@@ -86,36 +106,6 @@ export class AppComponent {
     { name: 'Advanced II', xpThreshold: 3000 },
     { name: 'Fluent', xpThreshold: 5000 },
   ];
-
-  readonly achievements: Achievement[] = [
-    { id: 'starter', title: 'Conversation Starter', description: 'Complete your first session.', icon: 'fa-comment-dots', check: stats => stats.sessionsCompleted >= 1 },
-    { id: 'talkative', title: 'Talkative', description: 'Complete 10 sessions.', icon: 'fa-comments', check: stats => stats.sessionsCompleted >= 10 },
-    { id: 'chatterbox', title: 'Chatterbox', description: 'Complete 50 sessions.', icon: 'fa-microphone-lines', check: stats => stats.sessionsCompleted >= 50 },
-    { id: 'vocab_10', title: 'Word Collector', description: 'Save 10 vocabulary words.', icon: 'fa-book', check: stats => stats.wordsSaved >= 10 },
-    { id: 'vocab_50', title: 'Polyglot', description: 'Save 50 vocabulary words.', icon: 'fa-book-bookmark', check: stats => stats.wordsSaved >= 50 },
-    { id: 'vocab_100', title: 'Lexicographer', description: 'Save 100 vocabulary words.', icon: 'fa-spell-check', check: stats => stats.wordsSaved >= 100 },
-    { id: 'scenario_master', title: 'Scenario Master', description: 'Complete all available scenarios.', icon: 'fa-masks-theater', check: stats => this.scenarios.every(s => stats.scenariosCompleted.includes(s.title)) },
-    { id: 'grammar_master', title: 'Grammar Guru', description: 'Complete all available grammar topics.', icon: 'fa-graduation-cap', check: stats => this.grammarTopics.every(g => stats.grammarCompleted.includes(g.title)) },
-  ];
-
-  currentLevel = computed(() => this.levels[this.userProgress().levelIndex]);
-
-  nextLevel = computed(() => {
-      const currentLevelIndex = this.userProgress().levelIndex;
-      if (currentLevelIndex >= this.levels.length - 1) return null;
-      return this.levels[currentLevelIndex + 1];
-  });
-
-  progressPercentage = computed(() => {
-      const current = this.currentLevel();
-      const next = this.nextLevel();
-      const progress = this.userProgress();
-      if (!next) return 100;
-      const xpInCurrentLevel = progress.xp - current.xpThreshold;
-      const xpForNextLevel = next.xpThreshold - current.xpThreshold;
-      if (xpForNextLevel <= 0) return 100;
-      return Math.min(100, (xpInCurrentLevel / xpForNextLevel) * 100);
-  });
 
   private static readonly jsonInstruction = `
 IMPORTANT: Your response MUST be a JSON object.
@@ -129,8 +119,51 @@ The JSON object must have the following properties:
 4. "microLessonSuggestion": (Optional) If you detect that the user is making the same grammatical mistake multiple times (at least 2-3 times), suggest a micro-lesson. Do NOT suggest a lesson after only one mistake. The object must contain:
    - "topic": A string that EXACTLY matches the title of one of these available grammar topics: 'Present Tense (Le Présent)', 'Gender of Nouns (Le Genre)', 'Past Tense (Le Passé Composé)'.
    - "reason": A short, friendly string in English explaining why you're suggesting this lesson.`;
-
+  
   // --- Data for child components ---
+  readonly tutors: Tutor[] = [
+    {
+      name: 'Ami',
+      avatar: 'https://robohash.org/ami.png?set=set2&bgset=bg1',
+      description: 'A friendly and patient tutor, perfect for all levels.',
+      systemInstruction: `You are a friendly, patient, and encouraging French language tutor named 'Ami'.
+Your goal is to help me learn French through natural conversation.
+Always respond in French unless I explicitly ask for something in English using square brackets, like [translate this].
+If I make a mistake, gently correct it and explain why, but don't interrupt the conversational flow.
+Keep your responses concise and appropriate for a language learner.` + AppComponent.jsonInstruction
+    },
+    {
+      name: 'Chloé',
+      avatar: 'https://robohash.org/chloe.png?set=set4&bgset=bg2',
+      description: 'An energetic and cheerful tutor who makes learning fun.',
+      voiceName: 'Amelie', // Common on macOS
+      systemInstruction: `You are a cheerful and energetic French language tutor named 'Chloé'.
+Your goal is to make learning French fun and engaging. Use modern, everyday language and maybe an emoji or two where appropriate 😉.
+Always respond in French. If I make a mistake, correct it in a friendly, encouraging way.
+Keep responses upbeat and not too long.` + AppComponent.jsonInstruction
+    },
+    {
+      name: 'Marc',
+      avatar: 'https://robohash.org/marc.png?set=set3&bgset=bg1',
+      description: 'A formal and precise tutor, focused on grammar.',
+      voiceName: 'Thomas', // Common on Windows
+      systemInstruction: `You are a formal and precise French language tutor named 'Marc'.
+Your goal is to help me achieve grammatical accuracy. Your tone is professional and clear.
+Always respond in French. When I make a mistake, provide a detailed correction and explain the grammatical rule. Focus on precision.` + AppComponent.jsonInstruction
+    },
+  ];
+
+  readonly achievements: Achievement[] = [
+    { id: 'starter', title: 'Conversation Starter', description: 'Complete your first session.', icon: 'fa-comment-dots', check: stats => stats.sessionsCompleted >= 1 },
+    { id: 'talkative', title: 'Talkative', description: 'Complete 10 sessions.', icon: 'fa-comments', check: stats => stats.sessionsCompleted >= 10 },
+    { id: 'chatterbox', title: 'Chatterbox', description: 'Complete 50 sessions.', icon: 'fa-microphone-lines', check: stats => stats.sessionsCompleted >= 50 },
+    { id: 'vocab_10', title: 'Word Collector', description: 'Save 10 vocabulary words.', icon: 'fa-book', check: stats => stats.wordsSaved >= 10 },
+    { id: 'vocab_50', title: 'Polyglot', description: 'Save 50 vocabulary words.', icon: 'fa-book-bookmark', check: stats => stats.wordsSaved >= 50 },
+    { id: 'vocab_100', title: 'Lexicographer', description: 'Save 100 vocabulary words.', icon: 'fa-spell-check', check: stats => stats.wordsSaved >= 100 },
+    { id: 'scenario_master', title: 'Scenario Master', description: 'Complete all available scenarios.', icon: 'fa-masks-theater', check: stats => this.scenarios.every(s => stats.scenariosCompleted.includes(s.title)) },
+    { id: 'grammar_master', title: 'Grammar Guru', description: 'Complete all available grammar topics.', icon: 'fa-graduation-cap', check: stats => this.grammarTopics.every(g => stats.grammarCompleted.includes(g.title)) },
+  ];
+
   readonly scenarios: Scenario[] = [
     {
       icon: 'fa-utensils',
@@ -210,15 +243,37 @@ The JSON object must have the following properties:
   
   constructor() {
     this.loadProgressFromStorage();
+    this.loadSettingsFromStorage();
     this.checkDailyStreak();
   }
+
+  currentLevel = computed(() => this.levels[this.userProgress().levelIndex]);
+
+  nextLevel = computed(() => {
+      const currentLevelIndex = this.userProgress().levelIndex;
+      if (currentLevelIndex >= this.levels.length - 1) return null;
+      return this.levels[currentLevelIndex + 1];
+  });
+
+  progressPercentage = computed(() => {
+      const current = this.currentLevel();
+      const next = this.nextLevel();
+      const progress = this.userProgress();
+      if (!next) return 100;
+      const xpInCurrentLevel = progress.xp - current.xpThreshold;
+      const xpForNextLevel = next.xpThreshold - current.xpThreshold;
+      if (xpForNextLevel <= 0) return 100;
+      return Math.min(100, (xpInCurrentLevel / xpForNextLevel) * 100);
+  });
 
   onSplashAnimationDone(): void {
     this.appState.set('landing');
   }
 
   onStartSession(state: ChatInitialState): void {
-    this.initialChatState.set(state);
+    const tutor = this.tutors.find(t => t.name === this.userSettings().tutorName);
+    const stateWithTutor = { ...state, tutor: tutor || this.tutors[0] };
+    this.initialChatState.set(stateWithTutor);
     this.appState.set('chat');
   }
   
@@ -242,11 +297,15 @@ The JSON object must have the following properties:
      this.saveProgressToStorage();
   }
 
+  onSettingsChanged(newSettings: UserSettings): void {
+    this.userSettings.set(newSettings);
+    this.saveSettingsToStorage();
+  }
+
   closeLevelUpModal(): void {
     this.showLevelUp.set(false);
   }
 
-  // --- Gamification Handlers ---
   openAchievementsModal(): void {
     this.showAchievements.set(true);
   }
@@ -305,7 +364,6 @@ The JSON object must have the following properties:
     const lastSession = this.userProgress().lastSessionDate;
 
     if (lastSession === today) {
-      // Already practiced today, do nothing.
       return;
     }
     
@@ -316,9 +374,9 @@ The JSON object must have the following properties:
     this.userProgress.update(p => {
       let newStreak = p.currentStreak;
       if (lastSession === yesterdayStr) {
-        newStreak += 1; // Continue streak
+        newStreak += 1;
       } else {
-        newStreak = 1; // Reset or start streak
+        newStreak = 1;
       }
       return { ...p, currentStreak: newStreak, lastSessionDate: today };
     });
@@ -330,9 +388,7 @@ The JSON object must have the following properties:
       const storedData = localStorage.getItem(this.PROGRESS_STORAGE_KEY);
       if (storedData) {
         const parsedData = JSON.parse(storedData) as UserProgress;
-        // Basic validation
         if (parsedData && typeof parsedData.levelIndex === 'number') {
-          // Ensure all properties exist to avoid errors with older data structures
           const defaultProgress = {
               levelIndex: 0, xp: 0, lastSessionDate: null, currentStreak: 0,
               unlockedAchievements: [],
@@ -353,6 +409,25 @@ The JSON object must have the following properties:
       localStorage.setItem(this.PROGRESS_STORAGE_KEY, JSON.stringify(this.userProgress()));
     } catch (e) {
       console.error('Failed to save progress to local storage:', e);
+    }
+  }
+
+  private loadSettingsFromStorage(): void {
+    try {
+      const storedData = localStorage.getItem(this.SETTINGS_STORAGE_KEY);
+      if (storedData) {
+        this.userSettings.set(JSON.parse(storedData));
+      }
+    } catch(e) {
+      console.error('Failed to load settings from local storage:', e);
+    }
+  }
+
+  private saveSettingsToStorage(): void {
+    try {
+      localStorage.setItem(this.SETTINGS_STORAGE_KEY, JSON.stringify(this.userSettings()));
+    } catch(e) {
+      console.error('Failed to save settings to local storage:', e);
     }
   }
 }

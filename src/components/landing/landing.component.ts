@@ -1,10 +1,13 @@
 
-import { Component, ChangeDetectionStrategy, input, output } from '@angular/core';
+
+
+
+import { Component, ChangeDetectionStrategy, input, output, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Scenario } from '../scenario-selection/scenario-selection.component';
 import { GrammarTopic } from '../grammar-selection/grammar-selection.component';
 import { ChatInitialState } from '../chat/chat.component';
-import { ListeningExercise } from '../../app.component';
+import { ListeningExercise, Tutor, UserSettings } from '../../app.component';
 
 @Component({
   selector: 'app-landing',
@@ -20,12 +23,22 @@ export class LandingComponent {
   nextLevel = input.required<any | null>();
   progressPercentage = input.required<number>();
   currentStreak = input.required<number>();
+  tutors = input.required<Tutor[]>();
+  userSettings = input.required<UserSettings>();
 
   startSession = output<ChatInitialState>();
   viewAchievements = output<void>();
+  settingsChanged = output<UserSettings>();
+
+  activeTutor = computed(() => {
+    const tutors = this.tutors();
+    const settings = this.userSettings();
+    // The || tutors[0] is a safeguard against invalid stored settings
+    return tutors.find(t => t.name === settings.tutorName) || tutors[0];
+  });
 
   onStartFreeTalk(): void {
-    this.startSession.emit({ type: 'free-talk' });
+    this.startSession.emit({ type: 'free-talk' } as ChatInitialState);
   }
 
   onStartScenario(scenario: Scenario): void {
@@ -42,5 +55,14 @@ export class LandingComponent {
 
   onViewAchievements(): void {
     this.viewAchievements.emit();
+  }
+
+  changeTutor(tutorName: string): void {
+    if (this.userSettings().tutorName === tutorName) return;
+    this.settingsChanged.emit({ ...this.userSettings(), tutorName });
+  }
+
+  changeSpeakingRate(rate: number): void {
+    this.settingsChanged.emit({ ...this.userSettings(), speakingRate: rate });
   }
 }

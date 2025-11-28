@@ -1,4 +1,6 @@
 
+
+
 @switch (appState()) {
   @case ('splash') {
     <app-splash-screen (animationDone)="onSplashAnimationDone()"></app-splash-screen>
@@ -13,13 +15,18 @@
       [nextLevel]="nextLevel()"
       [progressPercentage]="progressPercentage()"
       [currentStreak]="userProgress().currentStreak"
+      [tutors]="tutors"
+      [userSettings]="userSettings()"
       (startSession)="onStartSession($event)"
-      (viewAchievements)="openAchievementsModal()">
+      (viewAchievements)="openAchievementsModal()"
+      (settingsChanged)="onSettingsChanged($event)">
     </app-landing>
   }
   @case ('chat') {
     <app-chat 
       [initialState]="initialChatState()!"
+      [userSettings]="userSettings()"
+      [tutors]="tutors"
       (sessionEnded)="onSessionEnded($event)"
       (xpGained)="onXpGained($event)">
     </app-chat>

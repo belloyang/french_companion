@@ -1,4 +1,6 @@
 
+
+
 import {
   Component,
   ChangeDetectionStrategy,
@@ -20,31 +22,21 @@ import { GrammarTopic } from '../grammar-selection/grammar-selection.component';
 import { LevelUpComponent } from '../level-up/level-up.component';
 import { SessionReviewComponent } from '../session-review/session-review.component';
 import { Content } from '@google/genai';
-import { ListeningExercise } from '../../app.component';
+import { ListeningExercise, Tutor, UserSettings } from '../../app.component';
 
 export type ChatInitialState = 
-  | { type: 'free-talk' }
-  | { type: 'scenario', data: Scenario }
-  | { type: 'grammar', data: GrammarTopic }
-  | { type: 'listening', data: ListeningExercise };
+  (
+    | { type: 'free-talk' }
+    | { type: 'scenario', data: Scenario }
+    | { type: 'grammar', data: GrammarTopic }
+    | { type: 'listening', data: ListeningExercise }
+  ) & { tutor: Tutor };
+
 
 export interface SessionStats {
   wordsSaved: number;
   scenarioCompleted: string | null;
   grammarCompleted: string | null;
-}
-
-interface UserSettings {
-  speakingRate: number; // 0.75 (slow), 1 (normal), 1.5 (fast)
-  tutorName: string;
-}
-
-interface Tutor {
-  name: string;
-  avatar: string;
-  description: string;
-  systemInstruction: string;
-  voiceName?: string;
 }
 
 interface SavedConversationState {
@@ -60,6 +52,8 @@ interface SavedConversationState {
 export class ChatComponent {
   // --- Inputs / Outputs ---
   initialState = input.required<ChatInitialState>();
+  userSettings = input.required<UserSettings>();
+  tutors = input.required<Tutor[]>();
   sessionEnded = output<SessionStats>();
   xpGained = output<number>();
 
@@ -99,10 +93,6 @@ export class ChatComponent {
   listeningState = signal<'listening' | 'revealed' | 'answered' | 'done'>('listening');
   selectedAnswers = signal<Map<number, number>>(new Map());
 
-  // Settings
-  userSettings = signal<UserSettings>({ speakingRate: 1, tutorName: 'Ami' });
-  showSettings = signal(false);
-
   // Session Stats for Gamification
   private sessionStats: SessionStats = { wordsSaved: 0, scenarioCompleted: null, grammarCompleted: null };
 
@@ -111,7 +101,6 @@ export class ChatComponent {
   private recognition: any = null;
   public frenchVoice: SpeechSynthesisVoice | null = null;
   private readonly VOCAB_STORAGE_KEY = 'french-companion-vocab-bank';
-  private readonly SETTINGS_STORAGE_KEY = 'french-companion-settings';
   private readonly srsIntervalsDays = [1, 3, 7, 14, 30, 60, 120];
 
   private readonly jsonInstruction = `
@@ -126,38 +115,6 @@ The JSON object must have the following properties:
 4. "microLessonSuggestion": (Optional) If you detect that the user is making the same grammatical mistake multiple times (at least 2-3 times), suggest a micro-lesson. Do NOT suggest a lesson after only one mistake. The object must contain:
    - "topic": A string that EXACTLY matches the title of one of these available grammar topics: 'Present Tense (Le Présent)', 'Gender of Nouns (Le Genre)', 'Past Tense (Le Passé Composé)'.
    - "reason": A short, friendly string in English explaining why you're suggesting this lesson.`;
-
-  readonly tutors: Tutor[] = [
-    {
-      name: 'Ami',
-      avatar: 'https://robohash.org/ami.png?set=set2&bgset=bg1',
-      description: 'A friendly and patient tutor, perfect for all levels.',
-      systemInstruction: `You are a friendly, patient, and encouraging French language tutor named 'Ami'.
-Your goal is to help me learn French through natural conversation.
-Always respond in French unless I explicitly ask for something in English using square brackets, like [translate this].
-If I make a mistake, gently correct it and explain why, but don't interrupt the conversational flow.
-Keep your responses concise and appropriate for a language learner.` + this.jsonInstruction
-    },
-    {
-      name: 'Chloé',
-      avatar: 'https://robohash.org/chloe.png?set=set4&bgset=bg2',
-      description: 'An energetic and cheerful tutor who makes learning fun.',
-      voiceName: 'Amelie', // Common on macOS
-      systemInstruction: `You are a cheerful and energetic French language tutor named 'Chloé'.
-Your goal is to make learning French fun and engaging. Use modern, everyday language and maybe an emoji or two where appropriate 😉.
-Always respond in French. If I make a mistake, correct it in a friendly, encouraging way.
-Keep responses upbeat and not too long.` + this.jsonInstruction
-    },
-    {
-      name: 'Marc',
-      avatar: 'https://robohash.org/marc.png?set=set3&bgset=bg1',
-      description: 'A formal and precise tutor, focused on grammar.',
-      voiceName: 'Thomas', // Common on Windows
-      systemInstruction: `You are a formal and precise French language tutor named 'Marc'.
-Your goal is to help me achieve grammatical accuracy. Your tone is professional and clear.
-Always respond in French. When I make a mistake, provide a detailed correction and explain the grammatical rule. Focus on precision.` + this.jsonInstruction
-    },
-  ];
 
   private readonly grammarTopicsData: { title: string, systemInstruction: string, openingPrompt: string }[] = [
     {
@@ -178,7 +135,7 @@ Always respond in French. When I make a mistake, provide a detailed correction a
   ];
 
   // --- Computed Signals ---
-  activeTutor = computed(() => this.tutors.find(t => t.name === this.userSettings().tutorName) || this.tutors[0]);
+  activeTutor = computed(() => this.initialState().tutor);
 
   wordsDueForReview = computed(() => {
     const now = new Date();
@@ -216,7 +173,6 @@ Always respond in French. When I make a mistake, provide a detailed correction a
   constructor() {
     afterNextRender(() => {
       this.loadVocabularyFromStorage();
-      this.loadSettingsFromStorage();
       this.initializeSpeechRecognition();
       this.initializeSpeechSynthesis();
     });
@@ -228,7 +184,6 @@ Always respond in French. When I make a mistake, provide a detailed correction a
     });
 
     effect(() => this.saveToStorage(this.VOCAB_STORAGE_KEY, this.vocabularyBank()));
-    effect(() => this.saveToStorage(this.SETTINGS_STORAGE_KEY, this.userSettings()));
 
     // Start session when input is ready
     effect(() => {
@@ -236,6 +191,14 @@ Always respond in French. When I make a mistake, provide a detailed correction a
       if (state) {
         this.startSession(state);
       }
+    });
+
+    // Update voice when tutor changes
+    effect(() => {
+        const tutor = this.activeTutor();
+        if (tutor && 'speechSynthesis' in window) {
+            this.initializeSpeechSynthesis();
+        }
     });
   }
 
@@ -254,7 +217,7 @@ Always respond in French. When I make a mistake, provide a detailed correction a
     let openingPrompt = '';
 
     if (state.type === 'free-talk') {
-      systemInstruction = this.activeTutor().systemInstruction;
+      systemInstruction = state.tutor.systemInstruction;
       openingPrompt = "Introduce yourself and ask me a simple question.";
     } else if (state.type === 'scenario') {
       systemInstruction = state.data.systemInstruction;
@@ -305,13 +268,6 @@ Always respond in French. When I make a mistake, provide a detailed correction a
     const storedData = this.loadFromStorage<VocabularyBankItem[]>(this.VOCAB_STORAGE_KEY);
     if (storedData) {
       this.vocabularyBank.set(storedData);
-    }
-  }
-
-  private loadSettingsFromStorage(): void {
-    const storedData = this.loadFromStorage<UserSettings>(this.SETTINGS_STORAGE_KEY);
-    if (storedData) {
-      this.userSettings.set(storedData);
     }
   }
 
@@ -659,28 +615,9 @@ Always respond in French. When I make a mistake, provide a detailed correction a
     this.listeningState.set('done');
   }
 
-  // --- Settings & Modals ---
+  // --- Modals ---
   toggleVocabularyBank(): void {
     this.showVocabularyBank.update(v => !v);
-  }
-
-  toggleSettings(): void {
-    this.showSettings.update(v => !v);
-  }
-
-  changeSpeakingRate(rate: number): void {
-    this.userSettings.update(settings => ({ ...settings, speakingRate: rate }));
-  }
-
-  changeTutor(tutorName: string): void {
-    if (this.userSettings().tutorName === tutorName) {
-      this.showSettings.set(false);
-      return;
-    }
-    this.userSettings.update(settings => ({ ...settings, tutorName }));
-    this.initializeSpeechSynthesis();
-    this.startSession({ type: 'free-talk' });
-    this.showSettings.set(false);
   }
 
   exitSpecialMode(): void {
