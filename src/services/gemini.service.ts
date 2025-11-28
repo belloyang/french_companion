@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { GoogleGenAI, Type, GenerateContentResponse, Content } from '@google/genai';
+import { environment } from '../environments/environment';
 
 export interface VocabularyItem {
   word: string;
@@ -59,9 +60,9 @@ export class GeminiService {
         type: Type.OBJECT,
         description: "Feedback on the user's pronunciation.",
         properties: {
-            score: { type: Type.INTEGER, description: "An integer score from 1 to 5." },
-            feedback: { type: Type.STRING, description: "Constructive feedback text." },
-            tip: { type: Type.STRING, description: "A practical tip for improvement." }
+          score: { type: Type.INTEGER, description: "An integer score from 1 to 5." },
+          feedback: { type: Type.STRING, description: "Constructive feedback text." },
+          tip: { type: Type.STRING, description: "A practical tip for improvement." }
         },
         required: ["score", "feedback", "tip"]
       }
@@ -71,7 +72,7 @@ export class GeminiService {
 
   constructor() {
     try {
-      this.ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      this.ai = new GoogleGenAI({ apiKey: environment.apiKey });
     } catch (error) {
       console.error('Failed to initialize GoogleGenAI:', error);
     }
@@ -94,7 +95,7 @@ export class GeminiService {
       } catch (e) {
         // Not a JSON string, fall back to string matching
       }
-      
+
       // Fallback for other error message formats
       return error.message.includes('429') || error.message.toLowerCase().includes('resource_exhausted');
     }
@@ -121,7 +122,7 @@ export class GeminiService {
             responseSchema: this.responseSchema,
           },
         });
-        
+
         const jsonText = response.text.trim();
         const data = JSON.parse(jsonText);
 
@@ -130,7 +131,7 @@ export class GeminiService {
           text: data.response,
           vocabulary: data.vocabulary,
         };
-        
+
         const userFeedback = data.pronunciationFeedback || null;
 
         // Update history
@@ -148,25 +149,25 @@ export class GeminiService {
         } else {
           console.error('Error sending message to Gemini (final attempt or non-retryable):', error);
           let errorMessage = 'Désolé, une erreur est survenue. Veuillez réessayer. (Sorry, an error occurred. Please try again.)';
-          
+
           if (this.isRateLimitError(error)) {
-             errorMessage = 'Le service est actuellement surchargé. Veuillez patienter un moment avant de réessayer. (The service is currently overloaded. Please wait a moment before trying again.)';
+            errorMessage = 'Le service est actuellement surchargé. Veuillez patienter un moment avant de réessayer. (The service is currently overloaded. Please wait a moment before trying again.)';
           } else if (error instanceof Error && error.message.includes('JSON')) {
             errorMessage = 'Désolé, j\'ai eu un problème avec ma réponse. Essayons encore ! (Sorry, I had an issue with my response. Let\'s try again!)';
           }
-          
-          return { 
+
+          return {
             modelResponse: { role: 'model', text: errorMessage, vocabulary: [] },
-            userFeedback: null 
+            userFeedback: null
           };
         }
       }
     }
-    
+
     // This fallback should rarely be reached
-    return { 
-        modelResponse: { role: 'model', text: 'Désolé, une erreur inattendue est survenue après plusieurs tentatives.', vocabulary: [] },
-        userFeedback: null 
+    return {
+      modelResponse: { role: 'model', text: 'Désolé, une erreur inattendue est survenue après plusieurs tentatives.', vocabulary: [] },
+      userFeedback: null
     };
   }
 }
