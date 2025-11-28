@@ -10,6 +10,8 @@ import { VocabularyBankItem } from '../../services/gemini.service';
 export class VocabularyBankComponent {
   wordsForReview = input.required<VocabularyBankItem[]>();
   otherWords = input.required<VocabularyBankItem[]>();
+  speakingRate = input.required<number>();
+  frenchVoice = input.required<SpeechSynthesisVoice | null>();
   close = output<void>();
   review = output<VocabularyBankItem>();
 
@@ -19,6 +21,22 @@ export class VocabularyBankComponent {
 
   onReview(item: VocabularyBankItem): void {
     this.review.emit(item);
+  }
+  
+  speakWord(word: string): void {
+    if (!('speechSynthesis' in window)) return;
+
+    window.speechSynthesis.cancel();
+    
+    const utterance = new SpeechSynthesisUtterance(word);
+    utterance.rate = this.speakingRate();
+    const voice = this.frenchVoice();
+    if (voice) {
+      utterance.voice = voice;
+    }
+    utterance.lang = 'fr-FR';
+    
+    window.speechSynthesis.speak(utterance);
   }
 
   getDaysUntilReview(dateString: string): string {

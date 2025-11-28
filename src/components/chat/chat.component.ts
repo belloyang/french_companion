@@ -93,7 +93,7 @@ export class ChatComponent {
   chatContainer = viewChild<ElementRef<HTMLDivElement>>('chatContainer');
 
   private recognition: any = null;
-  private frenchVoice: SpeechSynthesisVoice | null = null;
+  public frenchVoice: SpeechSynthesisVoice | null = null;
   private readonly VOCAB_STORAGE_KEY = 'french-companion-vocab-bank';
   private readonly PROGRESS_STORAGE_KEY = 'french-companion-progress';
   private readonly SETTINGS_STORAGE_KEY = 'french-companion-settings';
@@ -580,6 +580,24 @@ Wait for my response. Correct me if needed. After a few 'avoir' verbs, introduce
       }
       this.isSpeaking.set(false);
     };
+    window.speechSynthesis.speak(utterance);
+  }
+
+  speakWord(word: string): void {
+    if (!('speechSynthesis' in window)) return;
+    
+    if (this.isSpeaking()) {
+      window.speechSynthesis.cancel();
+      this.isSpeaking.set(false);
+    }
+
+    const utterance = new SpeechSynthesisUtterance(word);
+    utterance.rate = this.userSettings().speakingRate;
+    if (this.frenchVoice) {
+      utterance.voice = this.frenchVoice;
+    }
+    utterance.lang = 'fr-FR';
+    
     window.speechSynthesis.speak(utterance);
   }
 
