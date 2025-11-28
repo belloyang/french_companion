@@ -12,18 +12,20 @@ import {
   output,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { GeminiService, Message, VocabularyItem, VocabularyBankItem, SessionReview, MicroLessonSuggestion } from '../../services/gemini.service';
+import { GeminiService, Message, VocabularyItem, VocabularyBankItem, SessionReview, MicroLessonSuggestion, ListeningContent } from '../../services/gemini.service';
 import { VocabularyBankComponent } from '../vocabulary-bank/vocabulary-bank.component';
 import { Scenario } from '../scenario-selection/scenario-selection.component';
 import { GrammarTopic } from '../grammar-selection/grammar-selection.component';
 import { LevelUpComponent } from '../level-up/level-up.component';
 import { SessionReviewComponent } from '../session-review/session-review.component';
 import { Content } from '@google/genai';
+import { ListeningExercise } from '../../app.component';
 
 export type ChatInitialState = 
   | { type: 'free-talk' }
   | { type: 'scenario', data: Scenario }
-  | { type: 'grammar', data: GrammarTopic };
+  | { type: 'grammar', data: GrammarTopic }
+  | { type: 'listening', data: ListeningExercise };
 
 
 interface UserSettings {
@@ -43,7 +45,6 @@ interface SavedConversationState {
   messages: Message[];
   history: Content[];
 }
-
 
 @Component({
   selector: 'app-chat',
@@ -86,6 +87,11 @@ export class ChatComponent {
   microLessonSuggestion = signal<MicroLessonSuggestion | null>(null);
   activeMicroLesson = signal<string | null>(null);
   savedConversationState = signal<SavedConversationState | null>(null);
+
+  // Listening Exercise State
+  activeListeningExercise = signal<ListeningContent | null>(null);
+  listeningState = signal<'listening' | 'revealed' | 'answered' | 'done'>('listening');
+  selectedAnswers = signal<Map<number, number>>(new Map());
 
   // Settings
   userSettings = signal<UserSettings>({ speakingRate: 1, tutorName: 'Ami' });
@@ -144,7 +150,6 @@ Always respond in French. When I make a mistake, provide a detailed correction a
     },
   ];
 
-  // Fix: The grammar data is duplicated from app.component because it cannot be passed down as an input.
   private readonly grammarTopicsData: { title: string, systemInstruction: string, openingPrompt: string }[] = [
     {
       title: 'Present Tense (Le Présent)',
@@ -233,11 +238,11 @@ Always respond in French. When I make a mistake, provide a detailed correction a
     this.activeScenario.set(null);
     this.activeGrammarTopic.set(null);
     this.activeMicroLesson.set(null);
+    this.activeListeningExercise.set(null);
 
     let systemInstruction = '';
     let openingPrompt = '';
 
-    // Fix: Refactored to use system instructions and prompts from the initialState data.
     if (state.type === 'free-talk') {
       systemInstruction = this.activeTutor().systemInstruction;
       openingPrompt = "Introduce yourself and ask me a simple question.";
@@ -249,13 +254,34 @@ Always respond in French. When I make a mistake, provide a detailed correction a
       systemInstruction = state.data.systemInstruction;
       openingPrompt = state.data.openingPrompt;
       this.activeGrammarTopic.set(state.data);
+    } else if (state.type === 'listening') {
+      systemInstruction = state.data.systemInstruction;
+      openingPrompt = state.data.openingPrompt;
+      this.listeningState.set('listening');
+      this.selectedAnswers.set(new Map());
     }
 
     try {
       const { modelResponse } = await this.geminiService.startNewConversation(systemInstruction, openingPrompt);
-      this.messages.set([modelResponse]);
-      if (this.chatMode() === 'voice') {
-        this.speak(modelResponse.text);
+      
+      if (state.type === 'listening') {
+        try {
+            const listeningContent = JSON.parse(modelResponse.text) as ListeningContent;
+            modelResponse.listeningContent = listeningContent;
+            this.messages.set([modelResponse]);
+            this.activeListeningExercise.set(listeningContent);
+            this.speak(listeningContent.monologue, () => this.listeningState.set('revealed'));
+        } catch(e) {
+            console.error("Failed to parse listening exercise JSON:", e);
+            this.error.set('Could not load the listening exercise. Please try another one.');
+            modelResponse.text = "Désolé, je n'ai pas pu charger cet exercice. Essayons autre chose.";
+            this.messages.set([modelResponse]);
+        }
+      } else {
+        this.messages.set([modelResponse]);
+        if (this.chatMode() === 'voice') {
+          this.speak(modelResponse.text);
+        }
       }
     } catch(e) {
       this.error.set('Could not start a chat session. Please check your API key and network connection.');
@@ -435,8 +461,11 @@ Always respond in French. When I make a mistake, provide a detailed correction a
     }
   }
   
-  private speak(text: string): void {
-    if (!('speechSynthesis' in window)) return;
+  private speak(text: string, onEndCallback?: () => void): void {
+    if (!('speechSynthesis' in window)) {
+        onEndCallback?.();
+        return;
+    }
     
     window.speechSynthesis.cancel();
 
@@ -447,7 +476,10 @@ Always respond in French. When I make a mistake, provide a detailed correction a
     }
     utterance.lang = 'fr-FR';
     utterance.onstart = () => this.isSpeaking.set(true);
-    utterance.onend = () => this.isSpeaking.set(false);
+    utterance.onend = () => {
+        this.isSpeaking.set(false);
+        onEndCallback?.();
+    };
     utterance.onerror = (event) => {
       if (event.error === 'interrupted') {
         console.log('Speech synthesis interrupted by user action.');
@@ -456,6 +488,7 @@ Always respond in French. When I make a mistake, provide a detailed correction a
         this.error.set(`An error occurred during speech playback: ${event.error}`);
       }
       this.isSpeaking.set(false);
+      onEndCallback?.();
     };
     window.speechSynthesis.speak(utterance);
   }
@@ -587,6 +620,33 @@ Always respond in French. When I make a mistake, provide a detailed correction a
     }
   }
 
+  // --- Listening Exercise Logic ---
+  selectAnswer(questionIndex: number, optionIndex: number): void {
+    this.selectedAnswers.update(currentMap => {
+        const newMap = new Map(currentMap);
+        newMap.set(questionIndex, optionIndex);
+        return newMap;
+    });
+  }
+
+  checkAnswers(): void {
+    this.listeningState.set('answered');
+    const exercise = this.activeListeningExercise();
+    if (!exercise) return;
+
+    let correctCount = 0;
+    exercise.questions.forEach((q, i) => {
+        if (this.selectedAnswers().get(i) === q.correctOptionIndex) {
+            correctCount++;
+        }
+    });
+    this.xpGained.emit(correctCount * 5); // 5 XP per correct answer
+
+    const feedback = `You got ${correctCount} out of ${exercise.questions.length} correct.`;
+    this.sendMessage(`[${feedback}]`);
+    this.listeningState.set('done');
+  }
+
   // --- Settings & Modals ---
   toggleVocabularyBank(): void {
     this.showVocabularyBank.update(v => !v);
@@ -621,7 +681,7 @@ Always respond in French. When I make a mistake, provide a detailed correction a
 
   // --- Session Review Logic ---
   async endSessionAndShowReview(): Promise<void> {
-    if (this.messages().filter(m => m.role === 'user').length < 2) {
+    if (this.messages().filter(m => m.role === 'user').length < 1 && !this.activeListeningExercise()) {
       this.sessionEnded.emit();
       return;
     }

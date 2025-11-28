@@ -1,3 +1,4 @@
+
 import { ChangeDetectionStrategy, Component, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ChatComponent, ChatInitialState } from './components/chat/chat.component';
@@ -12,9 +13,18 @@ interface UserProgress {
   xp: number;
 }
 
+export interface ListeningExercise {
+  icon: string;
+  title: string;
+  description: string;
+  systemInstruction: string;
+  openingPrompt: string;
+}
+
 @Component({
   selector: 'app-root',
   templateUrl: './app.component.html',
+  // FIX: Corrected typo from Change-DetectionStrategy to ChangeDetectionStrategy
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, ChatComponent, SplashScreenComponent, LandingComponent, LevelUpComponent],
 })
@@ -59,7 +69,6 @@ export class AppComponent {
       return Math.min(100, (xpInCurrentLevel / xpForNextLevel) * 100);
   });
 
-  // Fix: Added jsonInstruction as a static property to be used in data definitions.
   private static readonly jsonInstruction = `
 IMPORTANT: Your response MUST be a JSON object.
 The JSON object must have the following properties:
@@ -81,7 +90,6 @@ The JSON object must have the following properties:
       description: 'Practice ordering drinks and snacks.',
       objective: 'Your goal is to successfully order a coffee and a croissant.',
       backgroundImageUrl: 'https://picsum.photos/id/225/1200/800',
-      // Fix: Added missing properties systemInstruction and openingPrompt to satisfy the Scenario interface.
       systemInstruction: `You are a friendly but busy waiter in a Parisian café. I am a customer. Your goal is to take my order. Start by greeting me and asking what I would like. Respond naturally to my requests, and if I ask for the bill, provide a total. Keep your language authentic to a café setting.` + AppComponent.jsonInstruction,
       openingPrompt: 'Start the conversation by greeting me as a waiter would.',
     },
@@ -91,7 +99,6 @@ The JSON object must have the following properties:
       description: 'Learn to ask for and understand directions.',
       objective: 'Your goal is to find your way to the Eiffel Tower from a random location.',
       backgroundImageUrl: 'https://picsum.photos/id/175/1200/800',
-      // Fix: Added missing properties systemInstruction and openingPrompt to satisfy the Scenario interface.
       systemInstruction: `You are a helpful Parisian local, and I am a lost tourist. I will ask you for directions to a landmark. You should provide clear, step-by-step directions in French. Use common directional phrases (e.g., 'allez tout droit', 'tournez à gauche'). Start by asking me where I would like to go.` + AppComponent.jsonInstruction,
       openingPrompt: 'Start the conversation by asking me where I want to go.',
     },
@@ -101,7 +108,6 @@ The JSON object must have the following properties:
       description: 'Practice answering common interview questions.',
       objective: 'Your goal is to answer 3-4 interview questions confidently.',
       backgroundImageUrl: 'https://picsum.photos/id/119/1200/800',
-      // Fix: Added missing properties systemInstruction and openingPrompt to satisfy the Scenario interface.
       systemInstruction: `You are a hiring manager for a tech company in France, and I am a job applicant. Your task is to conduct a short interview. Ask me typical interview questions one by one, like "Parlez-moi de vous" or "Quelles sont vos plus grandes qualités?". Keep your tone professional and encouraging.` + AppComponent.jsonInstruction,
       openingPrompt: 'Start the interview by introducing yourself and asking me to tell you about myself.',
     }
@@ -112,7 +118,6 @@ The JSON object must have the following properties:
       icon: 'fa-comments',
       title: 'Present Tense (Le Présent)',
       description: 'Practice conjugating regular and irregular verbs in the present tense.',
-      // Fix: Added missing properties systemInstruction and openingPrompt to satisfy the GrammarTopic interface.
       systemInstruction: `You are a grammar coach. Your current topic is 'Le Présent' (the Present Tense). Your goal is to help me master this tense. Start by giving a very brief, one-sentence explanation of its main use. Then, give me a simple verb (like 'parler') and ask me to conjugate it for 'je'. Wait for my response. If I'm right, praise me and give me another pronoun. If I'm wrong, gently correct me and explain the rule. Continue this interactive exercise with a few different verbs.` + AppComponent.jsonInstruction,
       openingPrompt: `Start the grammar lesson on 'Le Présent'.`
     },
@@ -120,7 +125,6 @@ The JSON object must have the following properties:
       icon: 'fa-venus-mars',
       title: 'Gender of Nouns (Le Genre)',
       description: 'Learn to identify and use the correct gender for common nouns.',
-      // Fix: Added missing properties systemInstruction and openingPrompt to satisfy the GrammarTopic interface.
       systemInstruction: `You are a grammar coach. Your topic is 'Le Genre' (Noun Genders). Your goal is to help me practice using 'un/une' and 'le/la'. Start by giving me a common noun (e.g., 'livre') and ask me to say it with the correct indefinite article ('un' or 'une'). Wait for my response. Correct me if I'm wrong and explain any general rules if applicable (e.g., endings like -tion are often feminine). Continue this with a variety of nouns.` + AppComponent.jsonInstruction,
       openingPrompt: `Start the grammar lesson on 'Le Genre'.`
     },
@@ -128,9 +132,31 @@ The JSON object must have the following properties:
       icon: 'fa-clock-rotate-left',
       title: 'Past Tense (Le Passé Composé)',
       description: 'Practice forming the past tense with avoir and être.',
-      // Fix: Added missing properties systemInstruction and openingPrompt to satisfy the GrammarTopic interface.
       systemInstruction: `You are a grammar coach. Your topic is 'Le Passé Composé'. Start with a brief explanation of how it's formed with 'avoir'. Then give me a verb (e.g., 'manger') and a pronoun (e.g., 'tu') and ask me to form the passé composé. Wait for my response. Correct me if needed. After a few 'avoir' verbs, introduce a common 'être' verb (like 'aller') and explain the difference, including agreement.` + AppComponent.jsonInstruction,
       openingPrompt: `Start the grammar lesson on 'Le Passé Composé'.`
+    }
+  ];
+
+  readonly listeningExercises: ListeningExercise[] = [
+    {
+      icon: 'fa-shopping-basket',
+      title: 'At the Market',
+      description: 'Listen to a conversation at a French market.',
+      systemInstruction: `You are a language tutor creating a listening exercise. Your task is to generate a short monologue (3-4 sentences) in French about being at a market. Then, create 1-2 multiple-choice comprehension questions about the monologue.
+      IMPORTANT: The "response" property of your JSON output must be a STRING containing another JSON object. This inner JSON object must have:
+      1. "monologue": The French monologue text.
+      2. "questions": An array of question objects, each with "questionText" (in French) and an array of "options", and the "correctOptionIndex".` + AppComponent.jsonInstruction,
+      openingPrompt: 'Generate a listening exercise about being at a market.'
+    },
+    {
+      icon: 'fa-cloud-sun',
+      title: 'The Weather Report',
+      description: 'Understand a simple weather forecast.',
+      systemInstruction: `You are a language tutor creating a listening exercise. Your task is to generate a short monologue (3-4 sentences) in French, imitating a simple weather report. Then, create 1-2 multiple-choice comprehension questions about the forecast.
+      IMPORTANT: The "response" property of your JSON output must be a STRING containing another JSON object. This inner JSON object must have:
+      1. "monologue": The French monologue text.
+      2. "questions": An array of question objects, each with "questionText" (in French) and an array of "options", and the "correctOptionIndex".` + AppComponent.jsonInstruction,
+      openingPrompt: 'Generate a listening exercise about the weather.'
     }
   ];
   

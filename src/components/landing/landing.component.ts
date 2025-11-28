@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { Scenario } from '../scenario-selection/scenario-selection.component';
 import { GrammarTopic } from '../grammar-selection/grammar-selection.component';
 import { ChatInitialState } from '../chat/chat.component';
+import { ListeningExercise } from '../../app.component';
 
 @Component({
   selector: 'app-landing',
@@ -12,6 +13,7 @@ import { ChatInitialState } from '../chat/chat.component';
 export class LandingComponent {
   scenarios = input.required<Scenario[]>();
   grammarTopics = input.required<GrammarTopic[]>();
+  listeningExercises = input.required<ListeningExercise[]>();
   userProgress = input.required<any>();
   currentLevel = input.required<any>();
   nextLevel = input.required<any | null>();
@@ -29,5 +31,9 @@ export class LandingComponent {
 
   onStartGrammar(topic: GrammarTopic): void {
     this.startSession.emit({ type: 'grammar', data: topic });
+  }
+
+  onStartListening(exercise: ListeningExercise): void {
+    this.startSession.emit({ type: 'listening', data: exercise });
   }
 }

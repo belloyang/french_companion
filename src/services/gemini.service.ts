@@ -18,12 +18,25 @@ export interface PronunciationFeedback {
   tip: string;
 }
 
+// --- New Interfaces for Listening Comprehension ---
+export interface Question {
+  questionText: string;
+  options: string[];
+  correctOptionIndex: number;
+}
+
+export interface ListeningContent {
+  monologue: string;
+  questions: Question[];
+}
+
 export interface Message {
   role: 'user' | 'model';
   text: string;
   vocabulary?: VocabularyItem[];
   pronunciationFeedback?: PronunciationFeedback;
   microLessonSuggestion?: MicroLessonSuggestion;
+  listeningContent?: ListeningContent;
 }
 
 export interface MicroLessonSuggestion {
@@ -69,7 +82,7 @@ export class GeminiService {
   private readonly responseSchema = {
     type: Type.OBJECT,
     properties: {
-      response: { type: Type.STRING, description: "The conversational reply in French." },
+      response: { type: Type.STRING, description: "The conversational reply in French. For listening exercises, this will be a stringified JSON object." },
       vocabulary: {
         type: Type.ARRAY,
         description: "A list of key vocabulary words from the response.",
