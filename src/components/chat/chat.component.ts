@@ -10,12 +10,13 @@ import {
   computed,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { GeminiService, Message, VocabularyItem, VocabularyBankItem, SessionReview } from '../../services/gemini.service';
+import { GeminiService, Message, VocabularyItem, VocabularyBankItem, SessionReview, MicroLessonSuggestion } from '../../services/gemini.service';
 import { VocabularyBankComponent } from '../vocabulary-bank/vocabulary-bank.component';
 import { ScenarioSelectionComponent, Scenario } from '../scenario-selection/scenario-selection.component';
 import { GrammarSelectionComponent, GrammarTopic } from '../grammar-selection/grammar-selection.component';
 import { LevelUpComponent } from '../level-up/level-up.component';
 import { SessionReviewComponent } from '../session-review/session-review.component';
+import { Content } from '@google/genai';
 
 interface UserProgress {
   levelIndex: number;
@@ -33,6 +34,11 @@ interface Tutor {
   description: string;
   systemInstruction: string;
   voiceName?: string;
+}
+
+interface SavedConversationState {
+  messages: Message[];
+  history: Content[];
 }
 
 
@@ -70,6 +76,11 @@ export class ChatComponent {
   sessionReviewData = signal<SessionReview | null>(null);
   unsavedWordsFromSession = signal<VocabularyItem[]>([]);
 
+  // Micro-Lesson State
+  microLessonSuggestion = signal<MicroLessonSuggestion | null>(null);
+  activeMicroLesson = signal<string | null>(null);
+  savedConversationState = signal<SavedConversationState | null>(null);
+
   // User Progress
   userProgress = signal<UserProgress>({ levelIndex: 0, xp: 0 });
   showLevelUp = signal(false);
@@ -96,7 +107,10 @@ The JSON object must have the following properties:
 3. "pronunciationFeedback": (Optional) An object providing feedback on the user's pronunciation based on their most recent message. If feedback is not applicable (e.g., first message, unintelligible input), omit this property. The object must contain:
    - "score": An integer from 1 to 5, where 1 is poor and 5 is excellent.
    - "feedback": A short, constructive string explaining what was good and what could be improved.
-   - "tip": A single, practical tip for improvement.`;
+   - "tip": A single, practical tip for improvement.
+4. "microLessonSuggestion": (Optional) If you detect that the user is making the same grammatical mistake multiple times (at least 2-3 times), suggest a micro-lesson. Do NOT suggest a lesson after only one mistake. The object must contain:
+   - "topic": A string that EXACTLY matches the title of one of these available grammar topics: 'Present Tense (Le Présent)', 'Gender of Nouns (Le Genre)', 'Past Tense (Le Passé Composé)'.
+   - "reason": A short, friendly string in English explaining why you're suggesting this lesson.`;
 
   readonly tutors: Tutor[] = [
     {
@@ -309,6 +323,7 @@ Wait for my response. Correct me if needed. After a few 'avoir' verbs, introduce
     this.error.set(null);
     this.activeScenario.set(null);
     this.activeGrammarTopic.set(null);
+    this.activeMicroLesson.set(null);
     this.messages.set([]);
     try {
       const tutor = this.activeTutor();
@@ -453,12 +468,13 @@ Wait for my response. Correct me if needed. After a few 'avoir' verbs, introduce
     }
 
     this.messages.update(current => [...current, userMessage]);
+    this.microLessonSuggestion.set(null); // Clear previous suggestion
     this.addXp(1);
     this.isLoading.set(true);
     this.error.set(null);
 
     try {
-      const { modelResponse, userFeedback } = await this.geminiService.sendMessage(userMessage.text);
+      const { modelResponse, userFeedback, microLessonSuggestion } = await this.geminiService.sendMessage(userMessage.text);
       
       this.messages.update(current => {
         const newMessages = [...current];
@@ -478,6 +494,10 @@ Wait for my response. Correct me if needed. After a few 'avoir' verbs, introduce
         return [...newMessages, modelResponse];
       });
       
+      if (microLessonSuggestion) {
+        this.microLessonSuggestion.set(microLessonSuggestion);
+      }
+
       if (this.chatMode() === 'voice') {
         this.speak(modelResponse.text);
       }
@@ -620,6 +640,58 @@ Wait for my response. Correct me if needed. After a few 'avoir' verbs, introduce
     this.addXp(15);
   }
 
+  // --- Micro-Lesson Logic ---
+  async startMicroLesson(suggestion: MicroLessonSuggestion): Promise<void> {
+    this.savedConversationState.set({ messages: this.messages(), history: this.geminiService.getHistory() });
+    this.microLessonSuggestion.set(null);
+
+    const topic = this.grammarTopics.find(t => t.title === suggestion.topic);
+    if (!topic) {
+      this.error.set(`Could not find a micro-lesson for '${suggestion.topic}'.`);
+      return;
+    }
+
+    this.activeMicroLesson.set(topic.title);
+    this.activeScenario.set(null);
+    this.activeGrammarTopic.set(null);
+    this.isLoading.set(true);
+    this.messages.set([]);
+    this.error.set(null);
+
+    try {
+      const { modelResponse } = await this.geminiService.startNewConversation(topic.systemInstruction, topic.openingPrompt);
+      this.messages.set([modelResponse]);
+      if (this.chatMode() === 'voice') {
+        this.speak(modelResponse.text);
+      }
+    } catch (e) {
+      this.error.set('Could not start the micro-lesson. Please try again.');
+      console.error(e);
+      this.endMicroLesson(); // Restore conversation on error
+    } finally {
+      this.isLoading.set(false);
+    }
+  }
+
+  declineMicroLesson(): void {
+    this.microLessonSuggestion.set(null);
+  }
+
+  endMicroLesson(): void {
+    const savedState = this.savedConversationState();
+    if (savedState) {
+      this.messages.set(savedState.messages);
+      this.geminiService.setHistory(savedState.history);
+      this.savedConversationState.set(null);
+    }
+    this.activeMicroLesson.set(null);
+    const resumeMessage: Message = { role: 'model', text: "Super ! Continuons notre conversation." };
+    this.messages.update(current => [...current, resumeMessage]);
+    if (this.chatMode() === 'voice') {
+      this.speak(resumeMessage.text);
+    }
+  }
+
   // --- XP & Leveling Logic ---
   addXp(amount: number): void {
     const currentProgress = this.userProgress();
@@ -669,7 +741,11 @@ Wait for my response. Correct me if needed. After a few 'avoir' verbs, introduce
   }
 
   exitSpecialMode(): void {
-    this.endSessionAndShowReview();
+    if (this.activeMicroLesson()) {
+      this.endMicroLesson();
+    } else {
+      this.endSessionAndShowReview();
+    }
   }
 
   closeLevelUpModal(): void {

@@ -23,11 +23,18 @@ export interface Message {
   text: string;
   vocabulary?: VocabularyItem[];
   pronunciationFeedback?: PronunciationFeedback;
+  microLessonSuggestion?: MicroLessonSuggestion;
+}
+
+export interface MicroLessonSuggestion {
+  topic: string;
+  reason: string;
 }
 
 export interface GeminiResponse {
   modelResponse: Message;
   userFeedback: PronunciationFeedback | null;
+  microLessonSuggestion?: MicroLessonSuggestion;
 }
 
 // --- New Interfaces for Session Review ---
@@ -85,6 +92,15 @@ export class GeminiService {
             tip: { type: Type.STRING, description: "A practical tip for improvement." }
         },
         required: ["score", "feedback", "tip"]
+      },
+      microLessonSuggestion: {
+        type: Type.OBJECT,
+        description: "(Optional) If you detect a recurring grammatical error, suggest a micro-lesson.",
+        properties: {
+            topic: { type: Type.STRING, description: "The name of the grammar topic that matches one of the app's topics." },
+            reason: { type: Type.STRING, description: "A short, friendly explanation of why you're suggesting this lesson." }
+        },
+        required: ["topic", "reason"]
       }
     },
     required: ["response", "vocabulary"]
@@ -120,6 +136,14 @@ export class GeminiService {
     } catch (error) {
       console.error('Failed to initialize GoogleGenAI:', error);
     }
+  }
+
+  getHistory(): Content[] {
+    return [...this.history];
+  }
+
+  setHistory(history: Content[]): void {
+    this.history = history;
   }
 
   async startNewConversation(systemInstruction: string, openingPrompt: string): Promise<GeminiResponse> {
@@ -174,11 +198,12 @@ export class GeminiService {
         };
         
         const userFeedback = data.pronunciationFeedback || null;
+        const microLessonSuggestion = data.microLessonSuggestion || undefined;
 
         this.history.push({ role: 'user', parts: [{ text: messageText }] });
         this.history.push({ role: 'model', parts: [{ text: jsonText }] });
 
-        return { modelResponse, userFeedback };
+        return { modelResponse, userFeedback, microLessonSuggestion };
 
       } catch (error) {
         if (this.isRateLimitError(error) && attempt < maxRetries - 1) {
@@ -221,6 +246,9 @@ export class GeminiService {
 
     const reviewPrompt = `
     Analyze the following French conversation between a 'Tutor' and a 'Learner'. The learner is trying to improve their French.
+    The conversation is:
+    ${conversationText}
+    
     Provide a detailed session review based on the learner's performance.
     Your analysis MUST be a JSON object that strictly follows the provided schema.
     - Provide scores from 0 to 100 for fluency, accuracy, and vocabulary usage.
