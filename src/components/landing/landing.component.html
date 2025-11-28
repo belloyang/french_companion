@@ -1,0 +1,77 @@
+<div class="flex flex-col h-screen max-w-5xl mx-auto bg-zinc-50 dark:bg-slate-900">
+  <!-- Header -->
+  <header class="sticky top-0 z-20 flex items-center justify-between p-4 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md shrink-0 shadow-sm">
+    <div class="flex items-center min-w-0 space-x-4">
+      <img src="https://robohash.org/ami.png?set=set2&bgset=bg1&size=48x48" alt="Ami avatar" class="w-12 h-12 rounded-full shrink-0 border-2 border-white dark:border-slate-700">
+      <div class="w-full">
+        <div class="flex justify-between w-full">
+           <h1 class="text-base font-bold text-slate-800 dark:text-white">{{ currentLevel().name }}</h1>
+           @if(nextLevel(); as next) {
+            <p class="text-xs font-medium text-slate-500 dark:text-slate-400">{{ userProgress().xp }}/{{next.xpThreshold}} XP</p>
+           } @else {
+             <p class="text-xs font-medium text-indigo-500 dark:text-indigo-400">Max Level!</p>
+           }
+        </div>
+        <div class="w-full mt-1 bg-gray-200 rounded-full h-1.5 dark:bg-gray-700">
+          <div class="bg-indigo-500 h-1.5 rounded-full" [style.width.%]="progressPercentage()"></div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Dashboard Content -->
+  <main class="flex-1 p-6 overflow-y-auto">
+    <div class="text-center">
+      <h1 class="text-3xl font-bold text-slate-800 dark:text-white">Bonjour!</h1>
+      <p class="mt-2 text-lg text-slate-500 dark:text-slate-400">What would you like to practice today?</p>
+    </div>
+
+    <!-- Free Talk -->
+    <section class="mt-8">
+      <button (click)="onStartFreeTalk()" class="w-full p-6 text-left transition-transform bg-indigo-500 rounded-xl hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-slate-900 hover:scale-105 active:scale-100">
+        <div class="flex items-center">
+          <div class="flex items-center justify-center w-12 h-12 text-2xl text-indigo-500 bg-white rounded-lg">
+            <i class="fa-solid fa-comment-dots"></i>
+          </div>
+          <div class="ml-4">
+            <h2 class="text-xl font-bold text-white">Free Conversation</h2>
+            <p class="mt-1 text-indigo-100">Start a casual chat about any topic.</p>
+          </div>
+          <i class="ml-auto text-3xl text-indigo-300 fa-solid fa-arrow-right"></i>
+        </div>
+      </button>
+    </section>
+
+    <!-- Scenarios -->
+    <section class="mt-8">
+      <h2 class="text-xl font-semibold text-slate-700 dark:text-slate-200">Practice a Scenario</h2>
+      <div class="grid grid-cols-1 gap-4 mt-4 sm:grid-cols-3">
+        @for(scenario of scenarios(); track scenario.title) {
+          <button (click)="onStartScenario(scenario)" class="flex flex-col items-start p-5 text-left transition-transform bg-white border rounded-xl dark:bg-slate-800 hover:bg-zinc-50 dark:border-slate-700 dark:hover:bg-slate-700/50 focus:outline-none focus:ring-2 focus:ring-indigo-500 hover:scale-105 active:scale-100">
+            <div class="flex items-center justify-center w-12 h-12 text-xl text-white bg-indigo-500 rounded-lg">
+              <i class="fa-solid {{ scenario.icon }}"></i>
+            </div>
+            <h3 class="mt-4 font-bold text-slate-800 dark:text-white">{{ scenario.title }}</h3>
+            <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ scenario.description }}</p>
+          </button>
+        }
+      </div>
+    </section>
+
+    <!-- Grammar Practice -->
+    <section class="mt-8">
+      <h2 class="text-xl font-semibold text-slate-700 dark:text-slate-200">Practice Grammar</h2>
+      <div class="grid grid-cols-1 gap-4 mt-4 sm:grid-cols-3">
+        @for(topic of grammarTopics(); track topic.title) {
+          <button (click)="onStartGrammar(topic)" class="flex flex-col items-start p-5 text-left transition-transform bg-white border rounded-xl dark:bg-slate-800 hover:bg-zinc-50 dark:border-slate-700 dark:hover:bg-slate-700/50 focus:outline-none focus:ring-2 focus:ring-teal-500 hover:scale-105 active:scale-100">
+            <div class="flex items-center justify-center w-12 h-12 text-xl text-white bg-teal-500 rounded-lg">
+              <i class="fa-solid {{ topic.icon }}"></i>
+            </div>
+            <h3 class="mt-4 font-bold text-slate-800 dark:text-white">{{ topic.title }}</h3>
+            <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ topic.description }}</p>
+          </button>
+        }
+      </div>
+    </section>
+  </main>
+</div>

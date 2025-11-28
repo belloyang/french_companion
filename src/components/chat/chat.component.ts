@@ -8,20 +8,23 @@ import {
   ElementRef,
   afterNextRender,
   computed,
+  input,
+  output,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { GeminiService, Message, VocabularyItem, VocabularyBankItem, SessionReview, MicroLessonSuggestion } from '../../services/gemini.service';
 import { VocabularyBankComponent } from '../vocabulary-bank/vocabulary-bank.component';
-import { ScenarioSelectionComponent, Scenario } from '../scenario-selection/scenario-selection.component';
-import { GrammarSelectionComponent, GrammarTopic } from '../grammar-selection/grammar-selection.component';
+import { Scenario } from '../scenario-selection/scenario-selection.component';
+import { GrammarTopic } from '../grammar-selection/grammar-selection.component';
 import { LevelUpComponent } from '../level-up/level-up.component';
 import { SessionReviewComponent } from '../session-review/session-review.component';
 import { Content } from '@google/genai';
 
-interface UserProgress {
-  levelIndex: number;
-  xp: number;
-}
+export type ChatInitialState = 
+  | { type: 'free-talk' }
+  | { type: 'scenario', data: Scenario }
+  | { type: 'grammar', data: GrammarTopic };
+
 
 interface UserSettings {
   speakingRate: number; // 0.75 (slow), 1 (normal), 1.5 (fast)
@@ -45,9 +48,14 @@ interface SavedConversationState {
 @Component({
   selector: 'app-chat',
   templateUrl: './chat.component.html',
-  imports: [CommonModule, VocabularyBankComponent, ScenarioSelectionComponent, LevelUpComponent, GrammarSelectionComponent, SessionReviewComponent],
+  imports: [CommonModule, VocabularyBankComponent, LevelUpComponent, SessionReviewComponent],
 })
 export class ChatComponent {
+  // --- Inputs / Outputs ---
+  initialState = input.required<ChatInitialState>();
+  sessionEnded = output<void>();
+  xpGained = output<number>();
+
   private geminiService = inject(GeminiService);
   
   messages = signal<Message[]>([]);
@@ -65,9 +73,7 @@ export class ChatComponent {
   // Modals and active states
   vocabularyBank = signal<VocabularyBankItem[]>([]);
   showVocabularyBank = signal(false);
-  showScenarioSelection = signal(false);
   activeScenario = signal<Scenario | null>(null);
-  showGrammarSelection = signal(false);
   activeGrammarTopic = signal<GrammarTopic | null>(null);
   
   // Session Review State
@@ -81,11 +87,6 @@ export class ChatComponent {
   activeMicroLesson = signal<string | null>(null);
   savedConversationState = signal<SavedConversationState | null>(null);
 
-  // User Progress
-  userProgress = signal<UserProgress>({ levelIndex: 0, xp: 0 });
-  showLevelUp = signal(false);
-  justLeveledUpTo = signal<string | null>(null);
-
   // Settings
   userSettings = signal<UserSettings>({ speakingRate: 1, tutorName: 'Ami' });
   showSettings = signal(false);
@@ -95,7 +96,6 @@ export class ChatComponent {
   private recognition: any = null;
   public frenchVoice: SpeechSynthesisVoice | null = null;
   private readonly VOCAB_STORAGE_KEY = 'french-companion-vocab-bank';
-  private readonly PROGRESS_STORAGE_KEY = 'french-companion-progress';
   private readonly SETTINGS_STORAGE_KEY = 'french-companion-settings';
   private readonly srsIntervalsDays = [1, 3, 7, 14, 30, 60, 120];
 
@@ -144,87 +144,21 @@ Always respond in French. When I make a mistake, provide a detailed correction a
     },
   ];
 
-  private readonly levels = [
-    { name: 'Beginner I', xpThreshold: 0 },
-    { name: 'Beginner II', xpThreshold: 100 },
-    { name: 'Beginner III', xpThreshold: 250 },
-    { name: 'Intermediate I', xpThreshold: 500 },
-    { name: 'Intermediate II', xpThreshold: 800 },
-    { name: 'Intermediate III', xpThreshold: 1200 },
-    { name: 'Advanced I', xpThreshold: 2000 },
-    { name: 'Advanced II', xpThreshold: 3000 },
-    { name: 'Fluent', xpThreshold: 5000 },
-  ];
-
-  readonly scenarios: Scenario[] = [
+  // Fix: The grammar data is duplicated from app.component because it cannot be passed down as an input.
+  private readonly grammarTopicsData: { title: string, systemInstruction: string, openingPrompt: string }[] = [
     {
-      icon: 'fa-utensils',
-      title: 'At the Café',
-      description: 'Practice ordering drinks and snacks.',
-      objective: 'Your goal is to successfully order a coffee and a croissant.',
-      backgroundImageUrl: 'https://picsum.photos/id/225/1200/800',
-      systemInstruction: `You are a friendly but busy waiter in a Parisian café. I am a customer.
-Your goal is to take my order. Start by greeting me and asking what I would like.
-Respond naturally to my requests, and if I ask for the bill, provide a total.
-Keep your language authentic to a café setting.` + this.jsonInstruction,
-      openingPrompt: 'Start the conversation by greeting me as a waiter would.'
-    },
-    {
-      icon: 'fa-map-location-dot',
-      title: 'Asking for Directions',
-      description: 'Learn to ask for and understand directions.',
-      objective: 'Your goal is to find your way to the Eiffel Tower from a random location.',
-      backgroundImageUrl: 'https://picsum.photos/id/175/1200/800',
-      systemInstruction: `You are a helpful Parisian local, and I am a lost tourist.
-I will ask you for directions to a landmark. You should provide clear, step-by-step directions in French.
-Use common directional phrases (e.g., 'allez tout droit', 'tournez à gauche').
-Start by asking me where I would like to go.` + this.jsonInstruction,
-      openingPrompt: 'Start the conversation by asking me where I want to go.'
-    },
-    {
-      icon: 'fa-briefcase',
-      title: 'Job Interview',
-      description: 'Practice answering common interview questions.',
-      objective: 'Your goal is to answer 3-4 interview questions confidently.',
-      backgroundImageUrl: 'https://picsum.photos/id/119/1200/800',
-      systemInstruction: `You are a hiring manager for a tech company in France, and I am a job applicant.
-Your task is to conduct a short interview. Ask me typical interview questions one by one, like "Parlez-moi de vous" or "Quelles sont vos plus grandes qualités?".
-Keep your tone professional and encouraging.` + this.jsonInstruction,
-      openingPrompt: 'Start the interview by introducing yourself and asking me to tell you about myself.'
-    }
-  ];
-
-  readonly grammarTopics: GrammarTopic[] = [
-    {
-      icon: 'fa-comments',
       title: 'Present Tense (Le Présent)',
-      description: 'Practice conjugating regular and irregular verbs in the present tense.',
-      systemInstruction: `You are a grammar coach. Your current topic is 'Le Présent' (the Present Tense).
-Your goal is to help me master this tense. Start by giving a very brief, one-sentence explanation of its main use.
-Then, give me a simple verb (like 'parler') and ask me to conjugate it for 'je'.
-Wait for my response. If I'm right, praise me and give me another pronoun. If I'm wrong, gently correct me and explain the rule.
-Continue this interactive exercise with a few different verbs.` + this.jsonInstruction,
+      systemInstruction: `You are a grammar coach. Your current topic is 'Le Présent' (the Present Tense). Your goal is to help me master this tense. Start by giving a very brief, one-sentence explanation of its main use. Then, give me a simple verb (like 'parler') and ask me to conjugate it for 'je'. Wait for my response. If I'm right, praise me and give me another pronoun. If I'm wrong, gently correct me and explain the rule. Continue this interactive exercise with a few different verbs.` + this.jsonInstruction,
       openingPrompt: `Start the grammar lesson on 'Le Présent'.`
     },
     {
-      icon: 'fa-venus-mars',
       title: 'Gender of Nouns (Le Genre)',
-      description: 'Learn to identify and use the correct gender for common nouns.',
-      systemInstruction: `You are a grammar coach. Your topic is 'Le Genre' (Noun Genders).
-Your goal is to help me practice using 'un/une' and 'le/la'.
-Start by giving me a common noun (e.g., 'livre') and ask me to say it with the correct indefinite article ('un' or 'une').
-Wait for my response. Correct me if I'm wrong and explain any general rules if applicable (e.g., endings like -tion are often feminine).
-Continue this with a variety of nouns.` + this.jsonInstruction,
+      systemInstruction: `You are a grammar coach. Your topic is 'Le Genre' (Noun Genders). Your goal is to help me practice using 'un/une' and 'le/la'. Start by giving me a common noun (e.g., 'livre') and ask me to say it with the correct indefinite article ('un' or 'une'). Wait for my response. Correct me if I'm wrong and explain any general rules if applicable (e.g., endings like -tion are often feminine). Continue this with a variety of nouns.` + this.jsonInstruction,
       openingPrompt: `Start the grammar lesson on 'Le Genre'.`
     },
     {
-      icon: 'fa-clock-rotate-left',
       title: 'Past Tense (Le Passé Composé)',
-      description: 'Practice forming the past tense with avoir and être.',
-      systemInstruction: `You are a grammar coach. Your topic is 'Le Passé Composé'.
-Start with a brief explanation of how it's formed with 'avoir'.
-Then give me a verb (e.g., 'manger') and a pronoun (e.g., 'tu') and ask me to form the passé composé.
-Wait for my response. Correct me if needed. After a few 'avoir' verbs, introduce a common 'être' verb (like 'aller') and explain the difference, including agreement.` + this.jsonInstruction,
+      systemInstruction: `You are a grammar coach. Your topic is 'Le Passé Composé'. Start with a brief explanation of how it's formed with 'avoir'. Then give me a verb (e.g., 'manger') and a pronoun (e.g., 'tu') and ask me to form the passé composé. Wait for my response. Correct me if needed. After a few 'avoir' verbs, introduce a common 'être' verb (like 'aller') and explain the difference, including agreement.` + this.jsonInstruction,
       openingPrompt: `Start the grammar lesson on 'Le Passé Composé'.`
     }
   ];
@@ -243,31 +177,6 @@ Wait for my response. Correct me if needed. After a few 'avoir' verbs, introduce
     const dueWordsSet = new Set(this.wordsDueForReview());
     return this.vocabularyBank().filter(item => !dueWordsSet.has(item))
                                 .sort((a, b) => a.word.localeCompare(b.word));
-  });
-
-  currentLevel = computed(() => this.levels[this.userProgress().levelIndex]);
-
-  nextLevel = computed(() => {
-      const currentLevelIndex = this.userProgress().levelIndex;
-      if (currentLevelIndex >= this.levels.length - 1) {
-          return null;
-      }
-      return this.levels[currentLevelIndex + 1];
-  });
-
-  progressPercentage = computed(() => {
-      const current = this.currentLevel();
-      const next = this.nextLevel();
-      const progress = this.userProgress();
-
-      if (!next) return 100; // Max level
-
-      const xpInCurrentLevel = progress.xp - current.xpThreshold;
-      const xpForNextLevel = next.xpThreshold - current.xpThreshold;
-
-      if (xpForNextLevel <= 0) return 100;
-
-      return Math.min(100, (xpInCurrentLevel / xpForNextLevel) * 100);
   });
 
   backgroundStyle = computed(() => {
@@ -293,11 +202,9 @@ Wait for my response. Correct me if needed. After a few 'avoir' verbs, introduce
   constructor() {
     afterNextRender(() => {
       this.loadVocabularyFromStorage();
-      this.loadProgressFromStorage();
       this.loadSettingsFromStorage();
       this.initializeSpeechRecognition();
       this.initializeSpeechSynthesis();
-      this.initializeChat();
     });
     
     effect(() => {
@@ -306,29 +213,50 @@ Wait for my response. Correct me if needed. After a few 'avoir' verbs, introduce
       }
     });
 
+    effect(() => this.saveToStorage(this.VOCAB_STORAGE_KEY, this.vocabularyBank()));
+    effect(() => this.saveToStorage(this.SETTINGS_STORAGE_KEY, this.userSettings()));
+
+    // Start session when input is ready
     effect(() => {
-      this.saveToStorage(this.VOCAB_STORAGE_KEY, this.vocabularyBank());
-    });
-    effect(() => {
-      this.saveToStorage(this.PROGRESS_STORAGE_KEY, this.userProgress());
-    });
-     effect(() => {
-      this.saveToStorage(this.SETTINGS_STORAGE_KEY, this.userSettings());
+      const state = this.initialState();
+      if (state) {
+        this.startSession(state);
+      }
     });
   }
 
   // --- Initialization ---
-  async initializeChat(): Promise<void> {
+  async startSession(state: ChatInitialState): Promise<void> {
     this.isLoading.set(true);
     this.error.set(null);
+    this.messages.set([]);
     this.activeScenario.set(null);
     this.activeGrammarTopic.set(null);
     this.activeMicroLesson.set(null);
-    this.messages.set([]);
+
+    let systemInstruction = '';
+    let openingPrompt = '';
+
+    // Fix: Refactored to use system instructions and prompts from the initialState data.
+    if (state.type === 'free-talk') {
+      systemInstruction = this.activeTutor().systemInstruction;
+      openingPrompt = "Introduce yourself and ask me a simple question.";
+    } else if (state.type === 'scenario') {
+      systemInstruction = state.data.systemInstruction;
+      openingPrompt = state.data.openingPrompt;
+      this.activeScenario.set(state.data);
+    } else if (state.type === 'grammar') {
+      systemInstruction = state.data.systemInstruction;
+      openingPrompt = state.data.openingPrompt;
+      this.activeGrammarTopic.set(state.data);
+    }
+
     try {
-      const tutor = this.activeTutor();
-      const { modelResponse } = await this.geminiService.startNewConversation(tutor.systemInstruction, "Introduce yourself and ask me a simple question.");
+      const { modelResponse } = await this.geminiService.startNewConversation(systemInstruction, openingPrompt);
       this.messages.set([modelResponse]);
+      if (this.chatMode() === 'voice') {
+        this.speak(modelResponse.text);
+      }
     } catch(e) {
       this.error.set('Could not start a chat session. Please check your API key and network connection.');
       console.error(e);
@@ -341,13 +269,6 @@ Wait for my response. Correct me if needed. After a few 'avoir' verbs, introduce
     const storedData = this.loadFromStorage<VocabularyBankItem[]>(this.VOCAB_STORAGE_KEY);
     if (storedData) {
       this.vocabularyBank.set(storedData);
-    }
-  }
-
-  private loadProgressFromStorage(): void {
-    const storedData = this.loadFromStorage<UserProgress>(this.PROGRESS_STORAGE_KEY);
-    if (storedData && storedData.levelIndex < this.levels.length) {
-      this.userProgress.set(storedData);
     }
   }
 
@@ -469,7 +390,7 @@ Wait for my response. Correct me if needed. After a few 'avoir' verbs, introduce
 
     this.messages.update(current => [...current, userMessage]);
     this.microLessonSuggestion.set(null); // Clear previous suggestion
-    this.addXp(1);
+    this.xpGained.emit(1);
     this.isLoading.set(true);
     this.error.set(null);
 
@@ -488,7 +409,7 @@ Wait for my response. Correct me if needed. After a few 'avoir' verbs, introduce
 
         if (lastUserMsgIndex !== -1 && userFeedback) {
           newMessages[lastUserMsgIndex] = { ...newMessages[lastUserMsgIndex], pronunciationFeedback: userFeedback };
-          this.addXp(userFeedback.score);
+          this.xpGained.emit(userFeedback.score);
         }
         
         return [...newMessages, modelResponse];
@@ -509,50 +430,6 @@ Wait for my response. Correct me if needed. After a few 'avoir' verbs, introduce
       if (this.chatMode() === 'voice') {
         this.speak(errorMessage);
       }
-    } finally {
-      this.isLoading.set(false);
-    }
-  }
-
-  async selectScenario(scenario: Scenario): Promise<void> {
-    this.showScenarioSelection.set(false);
-    this.activeScenario.set(scenario);
-    this.activeGrammarTopic.set(null);
-    this.isLoading.set(true);
-    this.messages.set([]);
-    this.error.set(null);
-
-    try {
-      const { modelResponse } = await this.geminiService.startNewConversation(scenario.systemInstruction, scenario.openingPrompt);
-      this.messages.set([modelResponse]);
-      if (this.chatMode() === 'voice') {
-        this.speak(modelResponse.text);
-      }
-    } catch (e) {
-      this.error.set('Could not start the scenario. Please try again.');
-      console.error(e);
-    } finally {
-      this.isLoading.set(false);
-    }
-  }
-
-  async selectGrammarTopic(topic: GrammarTopic): Promise<void> {
-    this.showGrammarSelection.set(false);
-    this.activeGrammarTopic.set(topic);
-    this.activeScenario.set(null);
-    this.isLoading.set(true);
-    this.messages.set([]);
-    this.error.set(null);
-
-    try {
-      const { modelResponse } = await this.geminiService.startNewConversation(topic.systemInstruction, topic.openingPrompt);
-      this.messages.set([modelResponse]);
-      if (this.chatMode() === 'voice') {
-        this.speak(modelResponse.text);
-      }
-    } catch (e) {
-      this.error.set('Could not start the grammar lesson. Please try again.');
-      console.error(e);
     } finally {
       this.isLoading.set(false);
     }
@@ -583,7 +460,7 @@ Wait for my response. Correct me if needed. After a few 'avoir' verbs, introduce
     window.speechSynthesis.speak(utterance);
   }
 
-  speakWord(word: string): void {
+  public speakWord(word: string): void {
     if (!('speechSynthesis' in window)) return;
     
     if (this.isSpeaking()) {
@@ -655,7 +532,7 @@ Wait for my response. Correct me if needed. After a few 'avoir' verbs, introduce
       newBank[wordIndex] = updatedWord;
       return newBank;
     });
-    this.addXp(15);
+    this.xpGained.emit(15);
   }
 
   // --- Micro-Lesson Logic ---
@@ -663,7 +540,7 @@ Wait for my response. Correct me if needed. After a few 'avoir' verbs, introduce
     this.savedConversationState.set({ messages: this.messages(), history: this.geminiService.getHistory() });
     this.microLessonSuggestion.set(null);
 
-    const topic = this.grammarTopics.find(t => t.title === suggestion.topic);
+    const topic = this.grammarTopicsData.find(t => t.title === suggestion.topic);
     if (!topic) {
       this.error.set(`Could not find a micro-lesson for '${suggestion.topic}'.`);
       return;
@@ -710,33 +587,9 @@ Wait for my response. Correct me if needed. After a few 'avoir' verbs, introduce
     }
   }
 
-  // --- XP & Leveling Logic ---
-  addXp(amount: number): void {
-    const currentProgress = this.userProgress();
-    const newXp = currentProgress.xp + amount;
-    this.userProgress.set({ ...currentProgress, xp: newXp });
-
-    const nextLevel = this.nextLevel();
-
-    if (nextLevel && newXp >= nextLevel.xpThreshold) {
-      const newLevelIndex = currentProgress.levelIndex + 1;
-      this.userProgress.update(progress => ({ ...progress, levelIndex: newLevelIndex }));
-      this.justLeveledUpTo.set(this.levels[newLevelIndex].name);
-      this.showLevelUp.set(true);
-    }
-  }
-
   // --- Settings & Modals ---
   toggleVocabularyBank(): void {
     this.showVocabularyBank.update(v => !v);
-  }
-
-  toggleScenarioSelection(): void {
-    this.showScenarioSelection.update(v => !v);
-  }
-
-  toggleGrammarSelection(): void {
-    this.showGrammarSelection.update(v => !v);
   }
 
   toggleSettings(): void {
@@ -754,7 +607,7 @@ Wait for my response. Correct me if needed. After a few 'avoir' verbs, introduce
     }
     this.userSettings.update(settings => ({ ...settings, tutorName }));
     this.initializeSpeechSynthesis();
-    this.initializeChat();
+    this.startSession({ type: 'free-talk' });
     this.showSettings.set(false);
   }
 
@@ -766,14 +619,10 @@ Wait for my response. Correct me if needed. After a few 'avoir' verbs, introduce
     }
   }
 
-  closeLevelUpModal(): void {
-    this.showLevelUp.set(false);
-  }
-
   // --- Session Review Logic ---
   async endSessionAndShowReview(): Promise<void> {
     if (this.messages().filter(m => m.role === 'user').length < 2) {
-      this.initializeChat();
+      this.sessionEnded.emit();
       return;
     }
     
@@ -799,7 +648,7 @@ Wait for my response. Correct me if needed. After a few 'avoir' verbs, introduce
     this.showSessionReview.set(false);
     this.sessionReviewData.set(null);
     this.unsavedWordsFromSession.set([]);
-    this.initializeChat();
+    this.sessionEnded.emit();
   }
 
   saveAllUnsavedWords(): void {

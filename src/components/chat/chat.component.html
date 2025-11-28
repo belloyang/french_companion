@@ -30,18 +30,9 @@
         </div>
       } @else {
         <img [src]="activeTutor().avatar + '&size=48x48'" [alt]="activeTutor().name + ' avatar'" class="w-12 h-12 rounded-full shrink-0 border-2 border-white dark:border-slate-700">
-        <div class="w-full">
-          <div class="flex justify-between w-full">
-             <h1 class="text-base font-bold text-slate-800 dark:text-white">{{ currentLevel().name }}</h1>
-             @if(nextLevel(); as next) {
-              <p class="text-xs font-medium text-slate-500 dark:text-slate-400">{{ userProgress().xp }}/{{next.xpThreshold}} XP</p>
-             } @else {
-               <p class="text-xs font-medium text-indigo-500 dark:text-indigo-400">Max Level!</p>
-             }
-          </div>
-          <div class="w-full mt-1 bg-gray-200 rounded-full h-1.5 dark:bg-gray-700">
-            <div class="bg-indigo-500 h-1.5 rounded-full" [style.width.%]="progressPercentage()"></div>
-          </div>
+        <div>
+           <h1 class="text-lg font-bold text-slate-800 dark:text-white">Conversation with {{activeTutor().name}}</h1>
+           <p class="text-sm text-slate-500 dark:text-slate-400">Free-form chat</p>
         </div>
       }
       @if(activeScenario() || activeGrammarTopic() || activeMicroLesson()) {
@@ -56,14 +47,6 @@
         <button (click)="endSessionAndShowReview()" class="px-3 py-2 text-sm font-medium transition-colors rounded-lg text-rose-500 hover:bg-rose-100 dark:text-rose-400 dark:hover:bg-rose-900/50">
           <i class="fa-solid fa-flag-checkered"></i>
           <span class="hidden ml-2 sm:inline">End Session</span>
-        </button>
-        <button (click)="toggleScenarioSelection()" class="px-3 py-2 text-sm font-medium transition-colors rounded-lg text-slate-500 hover:bg-zinc-100 dark:text-slate-400 dark:hover:bg-slate-700">
-          <i class="fa-solid fa-masks-theater"></i>
-          <span class="hidden ml-2 sm:inline">Scenario</span>
-        </button>
-        <button (click)="toggleGrammarSelection()" class="px-3 py-2 text-sm font-medium transition-colors rounded-lg text-slate-500 hover:bg-zinc-100 dark:text-slate-400 dark:hover:bg-slate-700">
-          <i class="fa-solid fa-spell-check"></i>
-          <span class="hidden ml-2 sm:inline">Grammar</span>
         </button>
       }
       <button (click)="toggleVocabularyBank()" class="relative px-3 py-2 text-sm font-medium transition-colors rounded-lg text-slate-500 hover:bg-zinc-100 dark:text-slate-400 dark:hover:bg-slate-700">
@@ -309,32 +292,6 @@
     (close)="toggleVocabularyBank()"
     (review)="reviewWord($event)">
   </app-vocabulary-bank>
-}
-
-<!-- Scenario Selection Modal -->
-@if (showScenarioSelection()) {
-  <app-scenario-selection
-    [scenarios]="scenarios"
-    (select)="selectScenario($event)"
-    (close)="toggleScenarioSelection()">
-  </app-scenario-selection>
-}
-
-<!-- Grammar Selection Modal -->
-@if (showGrammarSelection()) {
-  <app-grammar-selection
-    [grammarTopics]="grammarTopics"
-    (select)="selectGrammarTopic($event)"
-    (close)="toggleGrammarSelection()">
-  </app-grammar-selection>
-}
-
-<!-- Level Up Modal -->
-@if (showLevelUp()) {
-  <app-level-up 
-    [newLevelName]="justLeveledUpTo()!"
-    (close)="closeLevelUpModal()">
-  </app-level-up>
 }
 
 <!-- Session Review Modal -->

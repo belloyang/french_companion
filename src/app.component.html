@@ -1,5 +1,31 @@
-@if (showSplash()) {
-  <app-splash-screen (animationDone)="onSplashAnimationDone()"></app-splash-screen>
-} @else {
-  <app-chat></app-chat>
+@switch (appState()) {
+  @case ('splash') {
+    <app-splash-screen (animationDone)="onSplashAnimationDone()"></app-splash-screen>
+  }
+  @case ('landing') {
+    <app-landing
+      [scenarios]="scenarios"
+      [grammarTopics]="grammarTopics"
+      [userProgress]="userProgress()"
+      [currentLevel]="currentLevel()"
+      [nextLevel]="nextLevel()"
+      [progressPercentage]="progressPercentage()"
+      (startSession)="onStartSession($event)">
+    </app-landing>
+  }
+  @case ('chat') {
+    <app-chat 
+      [initialState]="initialChatState()!"
+      (sessionEnded)="onSessionEnded()"
+      (xpGained)="onXpGained($event)">
+    </app-chat>
+  }
+}
+
+<!-- Level Up Modal is now managed at the root level -->
+@if (showLevelUp()) {
+  <app-level-up 
+    [newLevelName]="justLeveledUpTo()!"
+    (close)="closeLevelUpModal()">
+  </app-level-up>
 }
